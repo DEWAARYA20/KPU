@@ -73,15 +73,15 @@ export default function Home() {
           <div className="flex justify-between items-center">
             {/* Logo */}
             <div className="flex items-center gap-3">
-              {/* KPU Garuda emblem SVG placeholder */}
-              <div className="w-12 h-12 rounded-full border-2 border-yellow-400 flex items-center justify-center overflow-hidden bg-white/10 backdrop-blur-sm">
-                <div className="text-center">
-                  <div className="text-yellow-400 font-black text-xs leading-tight">KPU</div>
-                </div>
-              </div>
+              <img
+                src="/kpu-logo.png"
+                alt="Logo KPU"
+                className="w-12 h-12 object-contain drop-shadow-lg"
+                style={{ filter: 'drop-shadow(0 0 8px rgba(255,200,0,0.4))' }}
+              />
               <div>
                 <h1 className="text-white font-bold text-lg leading-tight tracking-wide">KOMISI PEMILIHAN UMUM</h1>
-                <p className="text-yellow-300 text-xs tracking-widest">SISTEM CATATAN HARIAN</p>
+                <p className="text-yellow-300 text-xs tracking-widest">KOTA PALU · SISTEM CATATAN HARIAN</p>
               </div>
             </div>
             {/* Nav buttons */}
@@ -120,7 +120,7 @@ export default function Home() {
         </div>
 
         <h2 className="text-5xl md:text-6xl font-black text-white mb-6 leading-tight tracking-tight">
-          Dashboard <span className="text-yellow-400">Catatan Harian</span><br />KPU
+          Dashboard <span className="text-yellow-400">Catatan Harian</span><br />KPU <span className="text-yellow-300">Kota Palu</span>
         </h2>
         <p className="text-lg text-white/70 max-w-2xl mx-auto mb-10">
           Sistem manajemen catatan harian yang komprehensif dengan workflow persetujuan otomatis untuk meningkatkan produktivitas dan transparansi.
