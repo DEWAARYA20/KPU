@@ -46,9 +46,9 @@ interface UserProfile {
   pangkat: string
   jabatan: string
   unit_kerja: string
-  nama_atasan: string
-  nip_atasan: string
-  jabatan_atasan: string
+  nama_atasan?: string
+  nip_atasan?: string
+  jabatan_atasan?: string
   skp_items?: string[]
   signature?: string
 }
@@ -115,7 +115,7 @@ export default function BukuKendaliPage() {
   })
   const [loading, setLoading]     = useState(true)
   const [submitting, setSubmitting] = useState<number | null>(null)
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
+  const [reportMonth, setReportMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   // coverMonth: which month is shown on the cover (0-indexed), default = current month
   const [coverMonth, setCoverMonth] = useState(new Date().getMonth())
@@ -126,9 +126,9 @@ export default function BukuKendaliPage() {
   const [coverEndDate, setCoverEndDate] = useState('')
 
   // Report custom date range states
-  const [reportPeriodType, setReportPeriodType] = useState<Record<number, 'monthly' | 'custom'>>({})
-  const [reportStartDate, setReportStartDate] = useState<Record<number, string>>({})
-  const [reportEndDate, setReportEndDate] = useState<Record<number, string>>({})
+  const [reportPeriodType, setReportPeriodType] = useState<'monthly' | 'custom'>('monthly')
+  const [reportStartDate, setReportStartDate] = useState('')
+  const [reportEndDate, setReportEndDate] = useState('')
 
   const supabase = createClient()
 
@@ -317,7 +317,7 @@ export default function BukuKendaliPage() {
       </div>
 
       <Tabs defaultValue="cover" className="w-full">
-        {/* Tab list: COVER + 12 bulan */}
+        {/* Tab list: COVER + LAPORAN */}
         <TabsList className="flex flex-wrap h-auto gap-1 justify-start bg-gray-100 p-1 rounded-lg">
           {/* COVER tab */}
           <TabsTrigger
@@ -327,28 +327,13 @@ export default function BukuKendaliPage() {
             COVER
           </TabsTrigger>
 
-          {/* Month tabs */}
-          {MONTHS.map((month, index) => {
-            const buku = bukuKendali[index]
-            const hasRecords = records[index] && records[index].length > 0
-            return (
-              <TabsTrigger
-                key={index}
-                value={`${index}`}
-                onClick={() => setCurrentMonth(index)}
-                className="text-xs px-2.5 py-1.5 flex flex-col items-center gap-0.5 data-[state=active]:bg-white"
-              >
-                {MONTHS_SHORT[index]}
-                {hasRecords && (
-                  <span className={`w-1.5 h-1.5 rounded-full mx-auto ${
-                    buku?.status === 'approved' ? 'bg-green-500' :
-                    buku?.status === 'submitted' ? 'bg-yellow-500' :
-                    'bg-blue-400'
-                  }`} />
-                )}
-              </TabsTrigger>
-            )
-          })}
+          {/* LAPORAN tab */}
+          <TabsTrigger
+            value="laporan"
+            className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-white"
+          >
+            LAPORAN
+          </TabsTrigger>
         </TabsList>
 
         {/* COVER Tab Content */}
@@ -448,31 +433,53 @@ export default function BukuKendaliPage() {
           )}
         </TabsContent>
 
-        {/* Monthly Tab Contents */}
-        {MONTHS.map((month, index) => {
-          const monthRecords = records[index] || []
-          
+        {/* LAPORAN Tab Content */}
+        {(() => {
+          const monthRecords = records[reportMonth] || []
+
           // Filter records if Rentang Tanggal is active
-          const isCustomPeriod = reportPeriodType[index] === 'custom'
-          const rStart = reportStartDate[index]
-          const rEnd = reportEndDate[index]
-          
-          const filteredRecords = isCustomPeriod && rStart && rEnd
-            ? monthRecords.filter(r => r.tanggal >= rStart && r.tanggal <= rEnd)
+          const isCustomPeriod = reportPeriodType === 'custom'
+          const filteredRecords = isCustomPeriod && reportStartDate && reportEndDate
+            ? monthRecords.filter(r => r.tanggal >= reportStartDate && r.tanggal <= reportEndDate)
             : monthRecords
 
-          const buku = bukuKendali[index]
+          const buku = bukuKendali[reportMonth]
           const status = buku?.status || 'draft'
           const StatusInfo = STATUS_INFO[status as keyof typeof STATUS_INFO]
           const StatusIcon = StatusInfo.icon
           const hasDrafts = monthRecords.some(r => r.status === 'draft')
 
-          const customPeriodText = isCustomPeriod && rStart && rEnd
-            ? formatIndonesianDateRange(rStart, rEnd)
+          const customPeriodText = isCustomPeriod && reportStartDate && reportEndDate
+            ? formatIndonesianDateRange(reportStartDate, reportEndDate)
             : undefined
 
           return (
-            <TabsContent key={index} value={`${index}`} className="space-y-4 mt-4">
+            <TabsContent value="laporan" className="space-y-4 mt-4">
+              {/* Month Selector */}
+              <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm text-stone-700">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pilih Bulan</label>
+                  <Select
+                    value={`${reportMonth}`}
+                    onValueChange={v => {
+                      setReportMonth(parseInt(v))
+                      setReportPeriodType('monthly')
+                      setReportStartDate('')
+                      setReportEndDate('')
+                    }}
+                  >
+                    <SelectTrigger className="w-44 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => (
+                        <SelectItem key={i} value={`${i}`}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               {/* Status bar */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -481,24 +488,24 @@ export default function BukuKendaliPage() {
                     {StatusInfo.label}
                   </span>
                   <span className="text-sm text-gray-500">
-                    {filteredRecords.length} catatan — {month} {selectedYear}
+                    {filteredRecords.length} catatan — {MONTHS[reportMonth]} {selectedYear}
                   </span>
                 </div>
 
                 {(status === 'draft' || hasDrafts) && monthRecords.length > 0 && (
                   <Button
                     onClick={() => {
-                      setMonthToSign(index)
+                      setMonthToSign(reportMonth)
                       setSignMethod(profile.signature ? 'profile' : 'draw')
                       setUploadedSign('')
                       setIsSignOpen(true)
                     }}
-                    disabled={submitting === index}
+                    disabled={submitting === reportMonth}
                     className="gap-2"
                     style={{ background: '#7a0000', color: '#fff' }}
                   >
                     <Send className="w-4 h-4" />
-                    {submitting === index ? 'Mengajukan...' : 'Ajukan Persetujuan'}
+                    {submitting === reportMonth ? 'Mengajukan...' : 'Ajukan Persetujuan'}
                   </Button>
                 )}
 
@@ -517,9 +524,9 @@ export default function BukuKendaliPage() {
                   <div className="flex bg-gray-100 p-0.5 rounded-md">
                     <button
                       type="button"
-                      onClick={() => setReportPeriodType(prev => ({ ...prev, [index]: 'monthly' }))}
+                      onClick={() => setReportPeriodType('monthly')}
                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        (reportPeriodType[index] || 'monthly') === 'monthly' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'
+                        reportPeriodType === 'monthly' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'
                       }`}
                     >
                       Seluruh Bulan
@@ -527,13 +534,13 @@ export default function BukuKendaliPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const { startDateStr, endDateStr } = getDefaultDatesForMonth(index, selectedYear)
-                        setReportPeriodType(prev => ({ ...prev, [index]: 'custom' }))
-                        setReportStartDate(prev => ({ ...prev, [index]: prev[index] || startDateStr }))
-                        setReportEndDate(prev => ({ ...prev, [index]: prev[index] || endDateStr }))
+                        const { startDateStr, endDateStr } = getDefaultDatesForMonth(reportMonth, selectedYear)
+                        setReportPeriodType('custom')
+                        setReportStartDate(s => s || startDateStr)
+                        setReportEndDate(s => s || endDateStr)
                       }}
                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                        reportPeriodType[index] === 'custom' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'
+                        reportPeriodType === 'custom' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'
                       }`}
                     >
                       Rentang Tanggal
@@ -541,14 +548,14 @@ export default function BukuKendaliPage() {
                   </div>
                 </div>
 
-                {reportPeriodType[index] === 'custom' && (
+                {reportPeriodType === 'custom' && (
                   <>
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Tanggal Mulai</label>
                       <input
                         type="date"
-                        value={reportStartDate[index] || ''}
-                        onChange={e => setReportStartDate(prev => ({ ...prev, [index]: e.target.value }))}
+                        value={reportStartDate}
+                        onChange={e => setReportStartDate(e.target.value)}
                         className="h-9 w-40 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
@@ -556,8 +563,8 @@ export default function BukuKendaliPage() {
                       <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Tanggal Selesai</label>
                       <input
                         type="date"
-                        value={reportEndDate[index] || ''}
-                        onChange={e => setReportEndDate(prev => ({ ...prev, [index]: e.target.value }))}
+                        value={reportEndDate}
+                        onChange={e => setReportEndDate(e.target.value)}
                         className="h-9 w-40 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
@@ -570,7 +577,7 @@ export default function BukuKendaliPage() {
                 <SKPTemplate
                   profile={profile}
                   records={filteredRecords}
-                  bulan={index + 1}
+                  bulan={reportMonth + 1}
                   tahun={selectedYear}
                   customPeriodText={customPeriodText}
                   onProfileUpdate={(updatedProfile) => setProfile(updatedProfile)}
@@ -598,7 +605,7 @@ export default function BukuKendaliPage() {
               )}
             </TabsContent>
           )
-        })}
+        })()}
       </Tabs>
       <Dialog open={isSignOpen} onOpenChange={setIsSignOpen}>
         <DialogContent className="max-w-md bg-white text-stone-900 border border-stone-200">

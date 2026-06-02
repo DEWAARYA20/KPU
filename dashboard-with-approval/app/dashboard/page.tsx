@@ -70,6 +70,7 @@ export default function DashboardPage() {
 
           // Load count of pending approvals
           if (isSup) {
+            let shouldExecute = true
             let pendingQuery = supabase
               .from('buku_kendali')
               .select('id, user_id', { count: 'exact', head: true })
@@ -85,11 +86,11 @@ export default function DashboardPage() {
                 const subIds = subProfiles.map(s => s.id)
                 pendingQuery = pendingQuery.in('user_id', subIds)
               } else {
-                pendingQuery = null
+                shouldExecute = false
               }
             }
 
-            if (pendingQuery) {
+            if (shouldExecute) {
               const { count: pendingCount, error: pendingErr } = await pendingQuery
               if (!pendingErr && pendingCount !== null) {
                 setPendingApprovalsCount(pendingCount)
