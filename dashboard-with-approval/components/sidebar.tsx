@@ -13,6 +13,7 @@ import {
   ClipboardList,
   BookOpen,
   UserCircle,
+  Users,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -43,6 +44,14 @@ export function Sidebar({ userRole }: SidebarProps) {
       label: 'Persetujuan',
       href: '/dashboard/approvals',
       icon: CheckCircle,
+    })
+  }
+
+  if (userRole === 'admin') {
+    menuItems.push({
+      label: 'Kelola Akun',
+      href: '/dashboard/users',
+      icon: Users,
     })
   }
 

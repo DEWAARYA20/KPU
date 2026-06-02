@@ -34,4 +34,23 @@ END $$;
 -- 4. Tambah kolom skp_items ke tabel profiles
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS skp_items TEXT[];
 
+-- 5. Kebijakan RLS untuk Administrator (CRUD Profil)
+CREATE OR REPLACE FUNCTION is_admin() 
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Drop policy if exists to avoid conflicts
+DROP POLICY IF EXISTS "Admins can manage all profiles" ON profiles;
+
+CREATE POLICY "Admins can manage all profiles" 
+ON profiles 
+FOR ALL 
+USING (is_admin());
+
 -- Selesai! ✅
