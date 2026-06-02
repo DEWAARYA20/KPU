@@ -178,6 +178,23 @@ ALTER TABLE buku_kendali
 -- 9. Tambah kolom user_signature untuk menyimpan tanda tangan pembuat laporan
 ALTER TABLE buku_kendali ADD COLUMN IF NOT EXISTS user_signature TEXT;
 
+-- 10. Trigger untuk menghapus user dari auth.users secara otomatis saat profil dihapus dari public.profiles
+CREATE OR REPLACE FUNCTION delete_auth_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM auth.users WHERE id = OLD.id;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_profile_deleted ON public.profiles;
+
+CREATE TRIGGER on_profile_deleted
+AFTER DELETE ON public.profiles
+FOR EACH ROW
+EXECUTE FUNCTION delete_auth_user();
+
 -- Selesai! ✅
+
 
 

@@ -39,7 +39,7 @@ export default function DashboardPage() {
         // Get user profile
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, role, nip, unit_kerja')
+          .select('full_name, role, nip, unit_kerja, jabatan')
           .eq('id', user.id)
           .single()
 
@@ -47,7 +47,7 @@ export default function DashboardPage() {
           setUserName(profile.full_name || 'User')
 
           let role = profile.role || 'staff'
-          const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala')
+          const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala') || profile.jabatan?.startsWith('Kepala')
           let isSupervisorNip = false
 
           if (profile.nip) {

@@ -84,7 +84,7 @@ export default function ProfilePage() {
       const { data: sups } = await supabase
         .from('profiles')
         .select('full_name, nip, unit_kerja, jabatan')
-        .or('role.in.(head,secretary,admin),unit_kerja.ilike.Kepala%')
+        .or('role.in.(head,secretary,admin),unit_kerja.ilike.Kepala%,jabatan.ilike.Kepala%')
       
       if (sups) {
         // Filter unique supervisors with names and NIPs

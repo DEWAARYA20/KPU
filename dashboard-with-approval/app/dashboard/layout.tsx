@@ -29,13 +29,13 @@ export default function DashboardLayout({
       // Get user profile with role & NIP
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role, nip, unit_kerja')
+        .select('role, nip, unit_kerja, jabatan')
         .eq('id', user.id)
         .single()
 
       if (profile) {
         let role = profile.role || 'staff'
-        const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala')
+        const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala') || profile.jabatan?.startsWith('Kepala')
         let isSupervisorNip = false
 
         if (profile.nip) {

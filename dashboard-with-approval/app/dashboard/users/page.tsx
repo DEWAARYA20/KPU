@@ -39,14 +39,14 @@ const PANGKAT_OPTIONS = [
 ]
 
 const SUB_BAGIAN_OPTIONS = [
-  'Kepala Sub Bagian Perencanaan, Data dan Informasi',
-  'Kepala Sub Bagian Partisipasi, Hubungan Masyarakat dan Sumber Daya Manusia',
-  'Kepala Sub Bagian Teknis Penyelenggaraan Pemilu dan Hukum',
-  'Kepala Sub Bagian Keuangan Umum dan Logistik',
-  'Kepala Bagian Perencanaan, Data dan Informasi',
-  'Kepala Bagian Partisipasi, Hubungan Masyarakat dan Sumber Daya Manusia',
-  'Kepala Bagian Teknis Penyelenggaraan Pemilu dan Hukum',
-  'Kepala Bagian Keuangan Umum dan Logistik',
+  'Sub Bagian Perencanaan, Data dan Informasi',
+  'Sub Bagian Partisipasi, Hubungan Masyarakat dan Sumber Daya Manusia',
+  'Sub Bagian Teknis Penyelenggaraan Pemilu dan Hukum',
+  'Sub Bagian Keuangan Umum dan Logistik',
+  'Bagian Perencanaan, Data dan Informasi',
+  'Bagian Partisipasi, Hubungan Masyarakat dan Sumber Daya Manusia',
+  'Bagian Teknis Penyelenggaraan Pemilu dan Hukum',
+  'Bagian Keuangan Umum dan Logistik',
 ]
 
 interface Profile {

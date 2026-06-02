@@ -65,7 +65,7 @@ export function Sidebar({ userRole }: SidebarProps) {
           className="w-20 h-20 object-contain"
         />
         <div className="text-center">
-          <h1 className="text-sm font-bold tracking-wide text-white leading-tight">KPU DASHBOARD</h1>
+          <h1 className="text-sm font-bold tracking-wide text-white leading-tight">KPU KOTA PALU</h1>
           <p className="text-xs mt-0.5" style={{ color: 'rgba(255,220,150,0.8)' }}>Catatan Kinerja Harian</p>
         </div>
       </div>

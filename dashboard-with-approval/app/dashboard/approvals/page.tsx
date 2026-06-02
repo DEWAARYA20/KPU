@@ -78,7 +78,7 @@ export default function ApprovalsPage() {
       if (!profile) return
 
       let role = profile.role || 'staff'
-      const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala')
+      const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala') || profile.jabatan?.startsWith('Kepala')
       let isSupervisorNip = false
 
       if (profile.nip) {
