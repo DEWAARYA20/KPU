@@ -329,7 +329,7 @@ export default function Page() {
                     {/* Sub Bagian */}
                     <div className="grid gap-2">
                       <Label htmlFor="subBagian" className="text-white/80">
-                        Sub / Bagian <span className="text-red-400">*</span>
+                        Bagian / Sub Bagian <span className="text-red-400">*</span>
                       </Label>
                       <Select value={subBagian} onValueChange={setSubBagian} required>
                         <SelectTrigger id="subBagian" className="h-11 bg-white/10 border-white/20 text-white">
