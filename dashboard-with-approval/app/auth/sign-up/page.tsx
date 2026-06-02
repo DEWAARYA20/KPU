@@ -24,17 +24,14 @@ import { useState } from 'react'
 import { User, Lock, Briefcase, ChevronRight, ChevronLeft } from 'lucide-react'
 
 const SUB_BAGIAN_OPTIONS = [
-  'Sub Bagian Perencanaan dan Data',
-  'Sub Bagian Teknis Penyelenggara dan Hubungan Partisipasi Masyarakat',
-  'Sub Bagian Hukum',
-  'Sub Bagian Keuangan, Umum, dan Logistik',
-  'Sub Bagian SDM',
-  'Sekretariat',
-  'Divisi Teknis Penyelenggara',
-  'Divisi Sosialisasi, Pendidikan Pemilih, dan Partisipasi Masyarakat',
-  'Divisi Hukum dan Pengawasan',
-  'Divisi Data dan Informasi',
-  'Divisi Keuangan, Umum, dan Logistik',
+  'Kepala Sub Bagian Perencanaan, Data dan Informasi',
+  'Kepala Sub Bagian Partisipasi, Hubungan Masyarakat dan Sumber Daya Manusia',
+  'Kepala Sub Bagian Teknis Penyelenggaraan Pemilu dan Hukum',
+  'Kepala Sub Bagian Keuangan Umum dan Logistik',
+  'Kepala Bagian Perencanaan, Data dan Informasi',
+  'Kepala Bagian Partisipasi, Hubungan Masyarakat dan Sumber Daya Manusia',
+  'Kepala Bagian Teknis Penyelenggaraan Pemilu dan Hukum',
+  'Kepala Bagian Keuangan Umum dan Logistik',
 ]
 
 const PANGKAT_OPTIONS = [
@@ -332,7 +329,7 @@ export default function Page() {
                     {/* Sub Bagian */}
                     <div className="grid gap-2">
                       <Label htmlFor="subBagian" className="text-white/80">
-                        Sub Bagian / Divisi <span className="text-red-400">*</span>
+                        Sub / Bagian <span className="text-red-400">*</span>
                       </Label>
                       <Select value={subBagian} onValueChange={setSubBagian} required>
                         <SelectTrigger id="subBagian" className="h-11 bg-white/10 border-white/20 text-white">
