@@ -144,6 +144,7 @@ export default function ProfilePage() {
         nama_atasan: profile.nama_atasan,
         nip_atasan: profile.nip_atasan,
         jabatan_atasan: profile.jabatan_atasan,
+        role: profile.role,
         signature: signatureData,
         updated_at: new Date().toISOString(),
       })

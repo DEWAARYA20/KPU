@@ -72,9 +72,30 @@ export default function ApprovalsPage() {
       const { data: profile } = await supabase
         .from('profiles').select('*').eq('id', user.id).single()
 
-      if (!profile || !['secretary', 'head', 'admin'].includes(profile.role)) return
+      if (!profile) return
 
-      setUserRole(profile.role)
+      let role = profile.role || 'staff'
+      const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala')
+      let isSupervisorNip = false
+
+      if (profile.nip) {
+        const { count, error } = await supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('nip_atasan', profile.nip)
+
+        if (!error && count && count > 0) {
+          isSupervisorNip = true
+        }
+      }
+
+      if (role === 'staff' && (isSupervisorUnit || isSupervisorNip)) {
+        role = 'head'
+      }
+
+      if (!['secretary', 'head', 'admin'].includes(role)) return
+
+      setUserRole(role)
       setSecretaryProfile({
         name: profile.full_name || '',
         nip: profile.nip || '',
@@ -93,6 +114,12 @@ export default function ApprovalsPage() {
 
       for (const buku of bukuData) {
         const p = (buku.profiles as any) || {}
+        
+        // If not admin, only show subordinates whose nip_atasan matches this supervisor's NIP
+        if (role !== 'admin' && p.nip_atasan !== profile.nip) {
+          continue
+        }
+
         // Load records for this user/month/year
         const { data: recs } = await supabase
           .from('activity_records')

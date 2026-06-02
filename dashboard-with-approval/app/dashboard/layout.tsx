@@ -26,15 +26,34 @@ export default function DashboardLayout({
         return
       }
 
-      // Get user profile with role
+      // Get user profile with role & NIP
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, nip, unit_kerja')
         .eq('id', user.id)
         .single()
 
       if (profile) {
-        setUserRole(profile.role)
+        let role = profile.role || 'staff'
+        const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala')
+        let isSupervisorNip = false
+
+        if (profile.nip) {
+          const { count, error } = await supabase
+            .from('profiles')
+            .select('id', { count: 'exact', head: true })
+            .eq('nip_atasan', profile.nip)
+
+          if (!error && count && count > 0) {
+            isSupervisorNip = true
+          }
+        }
+
+        if (role === 'staff' && (isSupervisorUnit || isSupervisorNip)) {
+          role = 'head'
+        }
+
+        setUserRole(role)
       }
 
       setIsLoading(false)

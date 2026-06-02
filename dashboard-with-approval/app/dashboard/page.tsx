@@ -23,6 +23,8 @@ export default function DashboardPage() {
   })
   const [userName, setUserName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [isSupervisor, setIsSupervisor] = useState(false)
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0)
   const supabase = createClient()
 
   useEffect(() => {
@@ -37,12 +39,63 @@ export default function DashboardPage() {
         // Get user profile
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, role, nip, unit_kerja')
           .eq('id', user.id)
           .single()
 
         if (profile) {
           setUserName(profile.full_name || 'User')
+
+          let role = profile.role || 'staff'
+          const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala')
+          let isSupervisorNip = false
+
+          if (profile.nip) {
+            const { count, error } = await supabase
+              .from('profiles')
+              .select('id', { count: 'exact', head: true })
+              .eq('nip_atasan', profile.nip)
+
+            if (!error && count && count > 0) {
+              isSupervisorNip = true
+            }
+          }
+
+          if (role === 'staff' && (isSupervisorUnit || isSupervisorNip)) {
+            role = 'head'
+          }
+
+          const isSup = ['secretary', 'head', 'admin'].includes(role)
+          setIsSupervisor(isSup)
+
+          // Load count of pending approvals
+          if (isSup) {
+            let pendingQuery = supabase
+              .from('buku_kendali')
+              .select('id, user_id', { count: 'exact', head: true })
+              .eq('status', 'submitted')
+
+            if (role !== 'admin' && profile.nip) {
+              const { data: subProfiles } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('nip_atasan', profile.nip)
+
+              if (subProfiles && subProfiles.length > 0) {
+                const subIds = subProfiles.map(s => s.id)
+                pendingQuery = pendingQuery.in('user_id', subIds)
+              } else {
+                pendingQuery = null
+              }
+            }
+
+            if (pendingQuery) {
+              const { count: pendingCount, error: pendingErr } = await pendingQuery
+              if (!pendingErr && pendingCount !== null) {
+                setPendingApprovalsCount(pendingCount)
+              }
+            }
+          }
         }
 
         // Get activity stats
@@ -89,7 +142,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${isSupervisor ? 'lg:grid-cols-5' : 'lg:grid-cols-4'} gap-6`}>
+        {isSupervisor && (
+          <Card className="border-l-4 border-l-red-600 bg-red-50/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-red-800">
+                Persetujuan Baru
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-red-700">{pendingApprovalsCount}</div>
+              <p className="text-xs text-gray-500 mt-1">Laporan staff menunggu TTD</p>
+            </CardContent>
+          </Card>
+        )}
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">
@@ -145,7 +211,15 @@ export default function DashboardPage() {
           <CardTitle>Aksi Cepat</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 ${isSupervisor ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4`}>
+            {isSupervisor && (
+              <Link href="/dashboard/approvals">
+                <Button className="w-full justify-start gap-2 bg-red-700 hover:bg-red-800 text-white">
+                  <CheckCircle className="w-5 h-5" />
+                  Persetujuan Staff ({pendingApprovalsCount})
+                </Button>
+              </Link>
+            )}
             <Link href="/dashboard/input">
               <Button className="w-full justify-start gap-2 bg-blue-600 hover:bg-blue-700">
                 <FileText className="w-5 h-5" />
@@ -206,6 +280,18 @@ export default function DashboardPage() {
                   <CheckCircle className="w-5 h-5 text-green-500" />
                   <span className="text-sm text-gray-700">Anda memiliki {stats.approvedCount} catatan yang sudah disetujui</span>
                 </div>
+              </div>
+            )}
+
+            {isSupervisor && pendingApprovalsCount > 0 && (
+              <div className="flex items-center justify-between p-3 bg-red-50 rounded border border-red-100">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-5 h-5 text-red-600" />
+                  <span className="text-sm text-stone-700 font-medium">Ada {pendingApprovalsCount} laporan staff yang membutuhkan tanda tangan Anda</span>
+                </div>
+                <Link href="/dashboard/approvals">
+                  <Button variant="ghost" size="sm" className="text-red-700 hover:text-red-850 hover:bg-red-100/50">Periksa</Button>
+                </Link>
               </div>
             )}
           </div>
