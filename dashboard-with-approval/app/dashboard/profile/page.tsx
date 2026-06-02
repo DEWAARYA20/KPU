@@ -24,10 +24,8 @@ interface Profile {
   nip_atasan: string
   jabatan_atasan: string
   role: string
-  // Secretary specific
   signature?: string
 }
-
 
 interface SupervisorInfo {
   full_name: string
@@ -48,6 +46,12 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
+
+  // Signature states
+  const [signMethod, setSignMethod] = useState<'draw' | 'upload'>('draw')
+  const [uploadedSign, setUploadedSign] = useState<string>('')
+  const [isEditingSignature, setIsEditingSignature] = useState(false)
+  const [hasDrawn, setHasDrawn] = useState(false)
 
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -72,12 +76,11 @@ export default function ProfilePage() {
           role: data.role || 'staff',
           signature: data.signature || '',
         })
-        // Draw existing signature on canvas
-        if (data.signature && canvasRef.current) {
-          const img = new Image()
-          img.onload = () => canvasRef.current?.getContext('2d')?.drawImage(img, 0, 0)
-          img.src = data.signature
+        if (!data.signature) {
+          setIsEditingSignature(true)
         }
+      } else {
+        setIsEditingSignature(true)
       }
 
       // Fetch registered supervisors
@@ -139,6 +142,7 @@ export default function ProfilePage() {
     ctx.lineJoin = 'round'
     ctx.stroke()
     setLastPos(pos)
+    setHasDrawn(true)
   }
 
   const stopDraw = () => setIsDrawing(false)
@@ -159,10 +163,18 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Get signature from canvas
+      // Get signature from canvas or uploaded image
       let signatureData = profile.signature || ''
-      if (canvasRef.current) {
-        signatureData = canvasRef.current.toDataURL('image/png')
+      if (isEditingSignature) {
+        if (signMethod === 'draw') {
+          if (canvasRef.current && hasDrawn) {
+            signatureData = canvasRef.current.toDataURL('image/png')
+          } else {
+            signatureData = ''
+          }
+        } else if (signMethod === 'upload') {
+          signatureData = uploadedSign || ''
+        }
       }
 
       const { error: upsertError } = await supabase.from('profiles').upsert({
@@ -180,6 +192,12 @@ export default function ProfilePage() {
         updated_at: new Date().toISOString(),
       })
       if (upsertError) throw upsertError
+
+      setProfile(p => ({ ...p, signature: signatureData }))
+      setIsEditingSignature(!signatureData)
+      setUploadedSign('')
+      setHasDrawn(false)
+
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
@@ -341,36 +359,170 @@ export default function ProfilePage() {
                 Tanda tangan ini akan digunakan saat menyetujui laporan kinerja staff
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 bg-gray-50">
-                <canvas
-                  ref={canvasRef}
-                  width={500}
-                  height={150}
-                  className="w-full bg-white border border-gray-200 rounded cursor-crosshair touch-none"
-                  style={{ touchAction: 'none' }}
-                  onMouseDown={startDraw}
-                  onMouseMove={draw}
-                  onMouseUp={stopDraw}
-                  onMouseLeave={stopDraw}
-                  onTouchStart={startDraw}
-                  onTouchMove={draw}
-                  onTouchEnd={stopDraw}
-                />
-                <p className="text-xs text-gray-500 text-center mt-1">
-                  Gambar tanda tangan Anda di area di atas
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={clearSignature}
-                className="gap-2"
-              >
-                <Eraser className="w-4 h-4" />
-                Hapus Tanda Tangan
-              </Button>
+            <CardContent className="space-y-4">
+              {profile.signature && !isEditingSignature ? (
+                <div className="space-y-3">
+                  <div className="bg-white border border-stone-200 rounded-lg p-4 flex justify-center items-center h-36 max-w-md">
+                    <img
+                      src={profile.signature}
+                      alt="Tanda Tangan Tersimpan"
+                      className="max-h-32 object-contain"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsEditingSignature(true)
+                      setUploadedSign('')
+                      setHasDrawn(false)
+                    }}
+                    className="gap-2"
+                  >
+                    <Eraser className="w-4 h-4" />
+                    Ganti Tanda Tangan
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Selector Method */}
+                  <div className="flex bg-stone-100 p-0.5 rounded-md text-xs font-medium max-w-xs mb-1">
+                    <button
+                      type="button"
+                      onClick={() => setSignMethod('draw')}
+                      className={`flex-1 py-1.5 rounded-md transition-all ${
+                        signMethod === 'draw' ? 'bg-white shadow text-stone-900 font-semibold' : 'text-stone-500 hover:text-stone-900'
+                      }`}
+                    >
+                      Tulis Manual
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSignMethod('upload')}
+                      className={`flex-1 py-1.5 rounded-md transition-all ${
+                        signMethod === 'upload' ? 'bg-white shadow text-stone-900 font-semibold' : 'text-stone-500 hover:text-stone-900'
+                      }`}
+                    >
+                      Unggah Scan / Foto
+                    </button>
+                  </div>
+
+                  {/* Draw canvas */}
+                  {signMethod === 'draw' && (
+                    <div className="space-y-2">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-2 bg-gray-50 max-w-md">
+                        <canvas
+                          ref={canvasRef}
+                          width={500}
+                          height={150}
+                          className="w-full bg-white border border-gray-200 rounded cursor-crosshair touch-none"
+                          style={{ touchAction: 'none' }}
+                          onMouseDown={startDraw}
+                          onMouseMove={draw}
+                          onMouseUp={stopDraw}
+                          onMouseLeave={stopDraw}
+                          onTouchStart={startDraw}
+                          onTouchMove={draw}
+                          onTouchEnd={stopDraw}
+                        />
+                        <p className="text-xs text-gray-500 text-center mt-1">
+                          Gambar tanda tangan Anda di area di atas
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            clearSignature()
+                            setHasDrawn(false)
+                          }}
+                          className="gap-2"
+                        >
+                          <Eraser className="w-4 h-4" />
+                          Hapus Coretan
+                        </Button>
+                        {profile.signature && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setIsEditingSignature(false)
+                              setUploadedSign('')
+                              setHasDrawn(false)
+                            }}
+                            className="text-stone-500 hover:text-stone-900"
+                          >
+                            Batal
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Upload Image */}
+                  {signMethod === 'upload' && (
+                    <div className="space-y-3 max-w-md">
+                      <div className="border border-stone-200 rounded-lg p-4 bg-white text-center space-y-3">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          id="profile-sign-upload"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              const reader = new FileReader()
+                              reader.onloadend = () => {
+                                setUploadedSign(reader.result as string)
+                              }
+                              reader.readAsDataURL(file)
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor="profile-sign-upload"
+                          className="inline-block px-4 py-2 bg-white border border-stone-300 rounded-md text-xs font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer shadow-sm"
+                        >
+                          Pilih File Gambar Tanda Tangan
+                        </label>
+                        
+                        {uploadedSign ? (
+                          <div className="bg-white border rounded p-2 flex justify-center items-center h-28 mt-2">
+                            <img
+                              src={uploadedSign}
+                              alt="Uploaded Signature"
+                              className="max-h-24 object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div className="h-28 border border-dashed rounded flex justify-center items-center text-xs text-stone-400">
+                            Belum ada gambar terpilih
+                          </div>
+                        )}
+                      </div>
+                      {profile.signature && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setIsEditingSignature(false)
+                            setUploadedSign('')
+                            setHasDrawn(false)
+                          }}
+                          className="text-stone-500 hover:text-stone-900"
+                        >
+                          Batal
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
