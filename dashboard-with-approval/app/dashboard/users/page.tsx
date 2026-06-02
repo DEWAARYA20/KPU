@@ -261,26 +261,35 @@ export default function UsersPage() {
     }
   }
 
-  // Delete User Profile
+  // Delete User Profile + Auth account via server API route
   const handleDelete = async () => {
     if (!selectedProfile) return
     setSubmitting(true)
     setError(null)
 
     try {
-      const { error: delErr } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', selectedProfile.id)
+      // Get current admin's session token to authorize the API call
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Sesi tidak ditemukan.')
 
-      if (delErr) throw delErr
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ userId: selectedProfile.id }),
+      })
+
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Gagal menghapus akun.')
 
       setIsDeleteOpen(false)
       resetForm()
       await loadProfiles()
     } catch (err: any) {
       console.error(err)
-      alert(err.message || 'Gagal menghapus profil.')
+      alert(err.message || 'Gagal menghapus akun.')
     } finally {
       setSubmitting(false)
     }
