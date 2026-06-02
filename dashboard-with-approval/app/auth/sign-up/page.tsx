@@ -143,12 +143,10 @@ export default function Page() {
   }
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #3a0000 0%, #6b0000 40%, #8b0000 70%, #5a0000 100%)' }}>
-      {/* Decorative elements */}
-      <div className="absolute -top-20 -left-20 w-64 h-64 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #ff4444, transparent)' }} />
-      <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #ff4444, transparent)' }} />
-      <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full opacity-15" style={{ background: 'radial-gradient(circle, #cc0000, transparent)' }} />
-      <div className="absolute bottom-0 right-0 w-28 h-28 rounded-full opacity-15" style={{ background: 'radial-gradient(circle, #cc0000, transparent)' }} />
+    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 relative overflow-hidden bg-gray-50">
+      {/* Subtle decorative elements */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-gray-50 to-gray-100" />
+      <div className="absolute top-0 left-0 right-0 h-1" style={{ background: 'linear-gradient(90deg, #7a0000, #cc8800, #7a0000)' }} />
 
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
@@ -156,48 +154,47 @@ export default function Page() {
           <img
             src="/kpu-logo.png"
             alt="Logo KPU"
-            className="w-20 h-20 object-contain drop-shadow-2xl"
-            style={{ filter: 'drop-shadow(0 0 16px rgba(255,200,0,0.4))' }}
+            className="w-20 h-20 object-contain drop-shadow-md"
           />
-          <p className="text-sm font-bold text-white tracking-widest mt-1">KOMISI PEMILIHAN UMUM</p>
-          <p className="text-xs font-semibold text-white/80 tracking-widest">KOTA PALU</p>
-          <p className="text-xs text-white/40 mt-0.5">Sistem Catatan Harian</p>
+          <p className="text-sm font-bold text-gray-800 tracking-widest mt-2">KOMISI PEMILIHAN UMUM</p>
+          <p className="text-xs font-semibold tracking-widest" style={{ color: '#7a0000' }}>KOTA PALU</p>
+          <p className="text-xs text-gray-400 mt-0.5">Sistem Catatan Harian</p>
         </div>
 
         {/* Step Indicator */}
         <div className="flex items-center justify-center gap-3 mb-6">
-          <div className={`flex items-center gap-2 text-sm font-medium ${step === 1 ? 'text-yellow-400' : 'text-green-400'}`}>
+          <div className={`flex items-center gap-2 text-sm font-medium ${step === 1 ? 'text-amber-700' : 'text-green-700'}`}>
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
-              ${step === 1 ? 'bg-yellow-400 text-stone-900' : 'bg-green-500 text-white'}`}>
+              ${step === 1 ? 'bg-amber-600 text-white' : 'bg-green-600 text-white'}`}>
               {step === 1 ? '1' : '✓'}
             </div>
-            <span className="text-white/80">Data Akun</span>
+            <span className="text-gray-700 font-semibold">Data Akun</span>
           </div>
-          <div className="w-12 h-px bg-white/20" />
-          <div className={`flex items-center gap-2 text-sm font-medium ${step === 2 ? 'text-yellow-400' : 'text-white/40'}`}>
+          <div className="w-12 h-px bg-gray-300" />
+          <div className={`flex items-center gap-2 text-sm font-medium ${step === 2 ? 'text-amber-700' : 'text-gray-400'}`}>
             <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
-              ${step === 2 ? 'bg-yellow-400 text-stone-900' : 'bg-white/10 text-white/40'}`}>
+              ${step === 2 ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
               2
             </div>
-            <span className="text-white/80">Data Diri</span>
+            <span className={step === 2 ? 'text-gray-700 font-semibold' : 'text-gray-400'}>Data Diri</span>
           </div>
         </div>
 
-        <Card className="shadow-2xl border border-white/10" style={{ background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}>
+        <Card className="shadow-lg border border-gray-200 bg-white">
           {step === 1 ? (
             <>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                <Lock className="w-5 h-5 text-yellow-400" />
-                <CardTitle className="text-xl text-white">Buat Akun</CardTitle>
-              </div>
-              <CardDescription className="text-white/60">Masukkan email dan password untuk akun Anda</CardDescription>
+                  <Lock className="w-5 h-5" style={{ color: '#7a0000' }} />
+                  <CardTitle className="text-xl text-gray-900">Buat Akun</CardTitle>
+                </div>
+                <CardDescription className="text-gray-500">Masukkan email dan password untuk akun Anda</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleNextStep}>
                   <div className="flex flex-col gap-5">
                     <div className="grid gap-2">
-                      <Label htmlFor="email" className="text-white/80">Email</Label>
+                      <Label htmlFor="email" className="text-gray-700">Email</Label>
                       <Input
                         id="email"
                         type="email"
@@ -205,11 +202,11 @@ export default function Page() {
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="h-11 bg-white/10 border-white/20 text-white"
+                        className="h-11 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
                       />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="password" className="text-white/80">Password</Label>
+                      <Label htmlFor="password" className="text-gray-700">Password</Label>
                       <Input
                         id="password"
                         type="password"
@@ -217,11 +214,11 @@ export default function Page() {
                         required
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="h-11 bg-white/10 border-white/20 text-white"
+                        className="h-11 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
                       />
                     </div>
                     <div className="grid gap-2">
-                      <Label htmlFor="repeat-password" className="text-white/80">Ulangi Password</Label>
+                      <Label htmlFor="repeat-password" className="text-gray-700">Ulangi Password</Label>
                       <Input
                         id="repeat-password"
                         type="password"
@@ -229,22 +226,22 @@ export default function Page() {
                         required
                         value={repeatPassword}
                         onChange={(e) => setRepeatPassword(e.target.value)}
-                        className="h-11 bg-white/10 border-white/20 text-white"
+                        className="h-11 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
                       />
                     </div>
                     {error && (
-                      <div className="rounded-md bg-red-900/50 border border-red-500/50 p-3 text-sm text-red-200">
+                      <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
                         {error}
                       </div>
                     )}
-                    <Button type="submit" className="w-full h-11 font-bold gap-2" style={{ background: 'linear-gradient(135deg, #cc8800, #ffbb00)', color: '#3a0000' }}>
+                    <Button type="submit" className="w-full h-11 font-bold text-sm text-white gap-2" style={{ background: 'linear-gradient(135deg, #7a0000, #a00000)' }}>
                       Selanjutnya
                       <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="mt-5 text-center text-sm text-white/60">
+                  <div className="mt-5 text-center text-sm text-gray-500">
                     Sudah punya akun?{' '}
-                    <Link href="/auth/login" className="text-yellow-400 underline underline-offset-4 font-medium">
+                    <Link href="/auth/login" className="underline underline-offset-4 font-medium" style={{ color: '#7a0000' }}>
                       Login di sini
                     </Link>
                   </div>
@@ -255,18 +252,18 @@ export default function Page() {
             <>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                <Briefcase className="w-5 h-5 text-yellow-400" />
-                <CardTitle className="text-xl text-white">Data Diri Pegawai</CardTitle>
-              </div>
-              <CardDescription className="text-white/60">Informasi ini akan digunakan pada laporan catatan harian</CardDescription>
+                  <Briefcase className="w-5 h-5" style={{ color: '#7a0000' }} />
+                  <CardTitle className="text-xl text-gray-900">Data Diri Pegawai</CardTitle>
+                </div>
+                <CardDescription className="text-gray-500">Informasi ini akan digunakan pada laporan catatan harian</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSignUp}>
                   <div className="flex flex-col gap-4">
                     {/* Nama Lengkap */}
                     <div className="grid gap-2">
-                      <Label htmlFor="fullName" className="text-white/80">
-                        Nama Lengkap <span className="text-red-400">*</span>
+                      <Label htmlFor="fullName" className="text-gray-700">
+                        Nama Lengkap <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="fullName"
@@ -275,14 +272,14 @@ export default function Page() {
                         required
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
-                        className="h-11 bg-white/10 border-white/20 text-white"
+                        className="h-11 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
                       />
                     </div>
 
                     {/* NIP */}
                     <div className="grid gap-2">
-                      <Label htmlFor="nip" className="text-white/80">
-                        NIP <span className="text-red-400">*</span>
+                      <Label htmlFor="nip" className="text-gray-700">
+                        NIP <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="nip"
@@ -292,17 +289,17 @@ export default function Page() {
                         value={nip}
                         onChange={(e) => setNip(e.target.value.replace(/\D/g, ''))}
                         maxLength={18}
-                        className="h-11 bg-white/10 border-white/20 text-white"
+                        className="h-11 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
                       />
                     </div>
 
                     {/* Pangkat */}
                     <div className="grid gap-2">
-                      <Label htmlFor="pangkat" className="text-white/80">
-                        Pangkat / Golongan <span className="text-red-400">*</span>
+                      <Label htmlFor="pangkat" className="text-gray-700">
+                        Pangkat / Golongan <span className="text-red-500">*</span>
                       </Label>
                       <Select value={pangkat} onValueChange={setPangkat} required>
-                        <SelectTrigger id="pangkat" className="h-11 bg-white/10 border-white/20 text-white">
+                        <SelectTrigger id="pangkat" className="h-11 bg-white border-gray-300 text-gray-900">
                           <SelectValue placeholder="Pilih pangkat/golongan..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -315,8 +312,8 @@ export default function Page() {
 
                     {/* Jabatan */}
                     <div className="grid gap-2">
-                      <Label htmlFor="jabatan" className="text-white/80">
-                        Jabatan <span className="text-red-400">*</span>
+                      <Label htmlFor="jabatan" className="text-gray-700">
+                        Jabatan <span className="text-red-500">*</span>
                       </Label>
                       <Input
                         id="jabatan"
@@ -325,14 +322,14 @@ export default function Page() {
                         required
                         value={jabatan}
                         onChange={(e) => setJabatan(e.target.value)}
-                        className="h-11 bg-white/10 border-white/20 text-white"
+                        className="h-11 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400"
                       />
                     </div>
 
                     {/* Sub Bagian */}
                     <div className="grid gap-2">
-                      <Label htmlFor="subBagian" className="text-white/80">
-                        Bagian / Sub Bagian <span className="text-white/40 font-normal">(Opsional)</span>
+                      <Label htmlFor="subBagian" className="text-gray-700">
+                        Bagian / Sub Bagian <span className="text-gray-400 font-normal">(Opsional)</span>
                       </Label>
                       {!isManualSubBagian ? (
                         <Select
@@ -346,14 +343,14 @@ export default function Page() {
                             }
                           }}
                         >
-                          <SelectTrigger id="subBagian" className="h-11 bg-white/10 border-white/20 text-white">
+                          <SelectTrigger id="subBagian" className="h-11 bg-white border-gray-300 text-gray-900">
                             <SelectValue placeholder="Pilih bagian..." />
                           </SelectTrigger>
                           <SelectContent>
                             {SUB_BAGIAN_OPTIONS.map((s) => (
                               <SelectItem key={s} value={s}>{s}</SelectItem>
                             ))}
-                            <SelectItem value="manual" className="font-semibold text-yellow-500">
+                            <SelectItem value="manual" className="font-semibold text-amber-600">
                               + Tulis Manual...
                             </SelectItem>
                           </SelectContent>
@@ -365,7 +362,7 @@ export default function Page() {
                             placeholder="Tulis Bagian / Sub Bagian..."
                             value={manualSubBagian}
                             onChange={(e) => setManualSubBagian(e.target.value)}
-                            className="h-11 bg-white/10 border-white/20 text-white flex-1"
+                            className="h-11 bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 flex-1"
                           />
                           <Button
                             type="button"
@@ -374,7 +371,7 @@ export default function Page() {
                               setIsManualSubBagian(false)
                               setManualSubBagian('')
                             }}
-                            className="h-11 px-3 border-white/20 bg-white/10 hover:bg-white/20 text-white"
+                            className="h-11 px-3 border-gray-300 bg-white hover:bg-gray-50 text-gray-700"
                           >
                             Kembali
                           </Button>
@@ -383,17 +380,17 @@ export default function Page() {
                     </div>
 
                     {error && (
-                      <div className="rounded-md bg-red-900/50 border border-red-500/50 p-3 text-sm text-red-200">
+                      <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
                         {error}
                       </div>
                     )}
 
                     <div className="flex gap-3 pt-1">
-                      <Button type="button" variant="outline" className="flex-1 h-11 gap-2 border-white/30 text-white hover:bg-white/10 bg-transparent" onClick={() => { setStep(1); setError(null) }}>
+                      <Button type="button" variant="outline" className="flex-1 h-11 gap-2 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white" onClick={() => { setStep(1); setError(null) }}>
                         <ChevronLeft className="w-4 h-4" />
                         Kembali
                       </Button>
-                      <Button type="submit" className="flex-1 h-11 font-bold gap-2" style={{ background: 'linear-gradient(135deg, #cc8800, #ffbb00)', color: '#3a0000' }} disabled={isLoading}>
+                      <Button type="submit" className="flex-1 h-11 font-bold text-sm text-white gap-2" style={{ background: 'linear-gradient(135deg, #7a0000, #a00000)' }} disabled={isLoading}>
                         <User className="w-4 h-4" />
                         {isLoading ? 'Mendaftar...' : 'Daftar Sekarang'}
                       </Button>
@@ -405,7 +402,7 @@ export default function Page() {
           )}
         </Card>
 
-        <p className="text-center text-xs text-white/30 mt-4">
+        <p className="text-center text-xs text-gray-400 mt-4">
           © 2024 KPU Dashboard · Semua data dilindungi
         </p>
       </div>
