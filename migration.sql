@@ -53,4 +53,131 @@ ON profiles
 FOR ALL 
 USING (is_admin());
 
+-- 6. Kebijakan RLS untuk buku_kendali agar Atasan/Supervisor dan Admin bisa membaca & menyetujui
+DROP POLICY IF EXISTS "Allow select for owner and supervisor and admin" ON buku_kendali;
+DROP POLICY IF EXISTS "Allow update for owner and supervisor and admin" ON buku_kendali;
+DROP POLICY IF EXISTS "Allow select for owner and supervisor" ON buku_kendali;
+DROP POLICY IF EXISTS "Allow update for owner and supervisor" ON buku_kendali;
+DROP POLICY IF EXISTS "Users can view their own buku_kendali" ON buku_kendali;
+DROP POLICY IF EXISTS "Users can update their own buku_kendali" ON buku_kendali;
+
+CREATE POLICY "Allow select for owner, supervisor and admin" ON buku_kendali
+FOR SELECT
+USING (
+  auth.uid() = user_id
+  OR EXISTS (
+    SELECT 1 FROM profiles AS subordinate
+    WHERE subordinate.id = buku_kendali.user_id
+      AND subordinate.nip_atasan = (
+        SELECT nip FROM profiles WHERE id = auth.uid()
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
+
+CREATE POLICY "Allow update for owner, supervisor and admin" ON buku_kendali
+FOR UPDATE
+USING (
+  auth.uid() = user_id
+  OR EXISTS (
+    SELECT 1 FROM profiles AS subordinate
+    WHERE subordinate.id = buku_kendali.user_id
+      AND subordinate.nip_atasan = (
+        SELECT nip FROM profiles WHERE id = auth.uid()
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+)
+WITH CHECK (
+  auth.uid() = user_id
+  OR EXISTS (
+    SELECT 1 FROM profiles AS subordinate
+    WHERE subordinate.id = buku_kendali.user_id
+      AND subordinate.nip_atasan = (
+        SELECT nip FROM profiles WHERE id = auth.uid()
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
+
+-- 7. Kebijakan RLS untuk activity_records agar Atasan/Supervisor dan Admin bisa membaca & menyetujui
+DROP POLICY IF EXISTS "Allow select for owner and supervisor and admin" ON activity_records;
+DROP POLICY IF EXISTS "Allow update for owner and supervisor and admin" ON activity_records;
+DROP POLICY IF EXISTS "Allow select for owner and supervisor" ON activity_records;
+DROP POLICY IF EXISTS "Allow update for owner and supervisor" ON activity_records;
+DROP POLICY IF EXISTS "Users can view their own activity_records" ON activity_records;
+DROP POLICY IF EXISTS "Users can update their own activity_records" ON activity_records;
+
+CREATE POLICY "Allow select for owner, supervisor and admin" ON activity_records
+FOR SELECT
+USING (
+  auth.uid() = user_id
+  OR EXISTS (
+    SELECT 1 FROM profiles AS subordinate
+    WHERE subordinate.id = activity_records.user_id
+      AND subordinate.nip_atasan = (
+        SELECT nip FROM profiles WHERE id = auth.uid()
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
+
+CREATE POLICY "Allow update for owner, supervisor and admin" ON activity_records
+FOR UPDATE
+USING (
+  auth.uid() = user_id
+  OR EXISTS (
+    SELECT 1 FROM profiles AS subordinate
+    WHERE subordinate.id = activity_records.user_id
+      AND subordinate.nip_atasan = (
+        SELECT nip FROM profiles WHERE id = auth.uid()
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+)
+WITH CHECK (
+  auth.uid() = user_id
+  OR EXISTS (
+    SELECT 1 FROM profiles AS subordinate
+    WHERE subordinate.id = activity_records.user_id
+      AND subordinate.nip_atasan = (
+        SELECT nip FROM profiles WHERE id = auth.uid()
+      )
+  )
+  OR EXISTS (
+    SELECT 1 FROM profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  )
+);
+
+-- 8. Opsional: Tambah foreign key constraint jika belum ada (agar schema cache terupdate)
+ALTER TABLE buku_kendali 
+  DROP CONSTRAINT IF EXISTS fk_buku_kendali_profiles;
+
+ALTER TABLE buku_kendali 
+  ADD CONSTRAINT fk_buku_kendali_profiles 
+  FOREIGN KEY (user_id) 
+  REFERENCES profiles(id) 
+  ON DELETE CASCADE;
+
+-- 9. Tambah kolom user_signature untuk menyimpan tanda tangan pembuat laporan
+ALTER TABLE buku_kendali ADD COLUMN IF NOT EXISTS user_signature TEXT;
+
 -- Selesai! ✅
+
+

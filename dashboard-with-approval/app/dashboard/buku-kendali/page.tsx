@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -9,6 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { SKPTemplate } from '@/components/skp-template'
 import { BukuKendaliTemplate } from '@/components/buku-kendali-template'
 import { Send, CheckCircle2, Clock, FileText } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 interface ActivityRecord {
   id: string
@@ -30,6 +37,7 @@ interface BukuKendali {
   secretary_nip?: string
   secretary_signature?: string
   signed_at?: string
+  user_signature?: string
 }
 
 interface UserProfile {
@@ -42,6 +50,7 @@ interface UserProfile {
   nip_atasan: string
   jabatan_atasan: string
   skp_items?: string[]
+  signature?: string
 }
 
 const MONTHS = [
@@ -123,6 +132,55 @@ export default function BukuKendaliPage() {
 
   const supabase = createClient()
 
+  // Signature canvas states
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [lastPos, setLastPos] = useState({ x: 0, y: 0 })
+  const [isSignOpen, setIsSignOpen] = useState(false)
+  const [monthToSign, setMonthToSign] = useState<number | null>(null)
+  const [signMethod, setSignMethod] = useState<'profile' | 'draw' | 'upload'>('draw')
+  const [uploadedSign, setUploadedSign] = useState('')
+
+  const getPos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    if ('touches' in e) {
+      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  const startDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    if (!canvasRef.current) return
+    setIsDrawing(true)
+    setLastPos(getPos(e, canvasRef.current))
+  }
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
+    if (!isDrawing || !canvasRef.current) return
+    const ctx = canvasRef.current.getContext('2d')
+    if (!ctx) return
+    const pos = getPos(e, canvasRef.current)
+    ctx.beginPath()
+    ctx.moveTo(lastPos.x, lastPos.y)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.strokeStyle = '#1a1a2e'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    ctx.stroke()
+    setLastPos(pos)
+  }
+
+  const stopDraw = () => setIsDrawing(false)
+  const clearSignature = () => {
+    if (!canvasRef.current) return
+    canvasRef.current.getContext('2d')?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
+  }
+
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i)
 
@@ -168,7 +226,7 @@ export default function BukuKendaliPage() {
     load()
   }, [supabase, selectedYear])
 
-  const handleSubmitForApproval = async (monthIndex: number) => {
+  const handleSubmitForApproval = async (monthIndex: number, signatureBase64: string) => {
     setSubmitting(monthIndex)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -190,10 +248,17 @@ export default function BukuKendaliPage() {
       const existing = bukuKendali[monthIndex]
       if (existing) {
         await supabase.from('buku_kendali')
-          .update({ status: 'submitted' }).eq('id', existing.id)
+          .update({ 
+            status: 'submitted',
+            user_signature: signatureBase64
+          }).eq('id', existing.id)
       } else {
         await supabase.from('buku_kendali').insert([{
-          user_id: user.id, bulan, tahun: selectedYear, status: 'submitted',
+          user_id: user.id, 
+          bulan, 
+          tahun: selectedYear, 
+          status: 'submitted',
+          user_signature: signatureBase64
         }])
       }
 
@@ -422,7 +487,12 @@ export default function BukuKendaliPage() {
 
                 {(status === 'draft' || hasDrafts) && monthRecords.length > 0 && (
                   <Button
-                    onClick={() => handleSubmitForApproval(index)}
+                    onClick={() => {
+                      setMonthToSign(index)
+                      setSignMethod(profile.signature ? 'profile' : 'draw')
+                      setUploadedSign('')
+                      setIsSignOpen(true)
+                    }}
                     disabled={submitting === index}
                     className="gap-2"
                     style={{ background: '#7a0000', color: '#fff' }}
@@ -504,11 +574,12 @@ export default function BukuKendaliPage() {
                   tahun={selectedYear}
                   customPeriodText={customPeriodText}
                   onProfileUpdate={(updatedProfile) => setProfile(updatedProfile)}
-                  signature={buku?.status === 'approved' ? {
+                  signature={buku ? {
                     secretary_name: buku.secretary_name,
                     secretary_nip: buku.secretary_nip,
                     secretary_signature: buku.secretary_signature,
                     signed_at: buku.signed_at,
+                    user_signature: buku.user_signature,
                   } : undefined}
                 />
               ) : (
@@ -529,6 +600,183 @@ export default function BukuKendaliPage() {
           )
         })}
       </Tabs>
+      <Dialog open={isSignOpen} onOpenChange={setIsSignOpen}>
+        <DialogContent className="max-w-md bg-white text-stone-900 border border-stone-200">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <FileText className="w-5 h-5 text-red-700" />
+              Tanda Tangan Laporan Kinerja
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2">
+            <p className="text-sm text-stone-600">
+              Silakan bubuhkan tanda tangan Anda sebelum mengirim laporan kinerja ke atasan.
+            </p>
+
+            <div className="flex bg-stone-100 p-0.5 rounded-md text-xs font-medium">
+              {profile.signature && (
+                <button
+                  type="button"
+                  onClick={() => setSignMethod('profile')}
+                  className={`flex-1 py-1.5 rounded-md transition-all ${
+                    signMethod === 'profile' ? 'bg-white shadow text-stone-900 animate-fade-in' : 'text-stone-500 hover:text-stone-900'
+                  }`}
+                >
+                  Tanda Tangan Profil
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setSignMethod('draw')}
+                className={`flex-1 py-1.5 rounded-md transition-all ${
+                  signMethod === 'draw' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
+                }`}
+              >
+                Tulis Manual
+              </button>
+              <button
+                type="button"
+                onClick={() => setSignMethod('upload')}
+                className={`flex-1 py-1.5 rounded-md transition-all ${
+                  signMethod === 'upload' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
+                }`}
+              >
+                Unggah Foto
+              </button>
+            </div>
+
+            {/* TAB CONTENT: PROFILE */}
+            {signMethod === 'profile' && profile.signature && (
+              <div className="border border-stone-200 rounded-lg p-3 bg-stone-50 text-center">
+                <p className="text-xs text-stone-500 mb-2">Menggunakan tanda tangan dari profil Anda:</p>
+                <div className="bg-white border rounded p-2 flex justify-center items-center h-32">
+                  <img
+                    src={profile.signature}
+                    alt="Tanda Tangan Profil"
+                    className="max-h-28 object-contain"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: DRAW */}
+            {signMethod === 'draw' && (
+              <div className="space-y-2">
+                <div className="border-2 border-dashed border-stone-300 rounded-lg p-2 bg-stone-50">
+                  <canvas
+                    ref={canvasRef}
+                    width={500}
+                    height={160}
+                    className="w-full bg-white rounded cursor-crosshair touch-none border"
+                    style={{ touchAction: 'none' }}
+                    onMouseDown={startDraw}
+                    onMouseMove={draw}
+                    onMouseUp={stopDraw}
+                    onMouseLeave={stopDraw}
+                    onTouchStart={startDraw}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDraw}
+                  />
+                  <p className="text-xs text-stone-400 text-center mt-1">
+                    Gambar tanda tangan Anda di atas
+                  </p>
+                </div>
+                <div className="flex justify-end">
+                  <Button type="button" variant="outline" size="sm" onClick={clearSignature}>
+                    Hapus
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: UPLOAD */}
+            {signMethod === 'upload' && (
+              <div className="space-y-3">
+                <div className="border border-stone-200 rounded-lg p-4 bg-stone-50 text-center space-y-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="sign-upload-input"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        const reader = new FileReader()
+                        reader.onloadend = () => {
+                          setUploadedSign(reader.result as string)
+                        }
+                        reader.readAsDataURL(file)
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="sign-upload-input"
+                    className="inline-block px-4 py-2 bg-white border border-stone-300 rounded-md text-xs font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer shadow-sm"
+                  >
+                    Pilih File Gambar Tanda Tangan
+                  </label>
+                  
+                  {uploadedSign ? (
+                    <div className="bg-white border rounded p-2 flex justify-center items-center h-32 mt-2">
+                      <img
+                        src={uploadedSign}
+                        alt="Uploaded Signature"
+                        className="max-h-28 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-32 border border-dashed rounded flex justify-center items-center text-xs text-stone-400">
+                      Belum ada gambar terpilih
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="mt-4 gap-2 sm:gap-0 border-t border-stone-100 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsSignOpen(false)}
+              className="border-stone-300 text-stone-700"
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={async () => {
+                let finalSign = ''
+                if (signMethod === 'profile') {
+                  finalSign = profile.signature || ''
+                } else if (signMethod === 'upload') {
+                  finalSign = uploadedSign
+                  if (!finalSign) {
+                    alert('Silakan unggah foto tanda tangan terlebih dahulu')
+                    return
+                  }
+                } else if (signMethod === 'draw') {
+                  if (canvasRef.current) {
+                    // Check if canvas is empty
+                    // Draw method requires drawing
+                    finalSign = canvasRef.current.toDataURL('image/png')
+                  }
+                }
+
+                if (monthToSign !== null) {
+                  setIsSignOpen(false)
+                  await handleSubmitForApproval(monthToSign, finalSign)
+                }
+              }}
+              style={{ backgroundColor: '#7a0000', color: '#fff' }}
+              className="hover:bg-red-900"
+            >
+              Kirim & Tanda Tangani
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

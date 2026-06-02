@@ -38,6 +38,7 @@ interface SignatureData {
   secretary_nip?: string
   secretary_signature?: string
   signed_at?: string
+  user_signature?: string
 }
 
 interface SKPTemplateProps {
@@ -442,8 +443,17 @@ export function SKPTemplate({
                   <span>&nbsp;</span>
                 )}
               </td>
-              <td style={{ ...cell({ height: '80px', padding: '8px 12px' }), textAlign: 'center' }}>
-                &nbsp;
+              <td style={{ ...cell({ height: '80px', padding: '8px 12px' }), textAlign: 'center', verticalAlign: 'middle' }}>
+                {signature?.user_signature ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={signature.user_signature}
+                    alt="Tanda tangan pembuat"
+                    style={{ height: '60px', objectFit: 'contain', margin: '0 auto' }}
+                  />
+                ) : (
+                  <span>&nbsp;</span>
+                )}
               </td>
             </tr>
             <tr>

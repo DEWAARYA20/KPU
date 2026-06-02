@@ -27,6 +27,7 @@ interface BukuKendali {
   secretary_nip?: string
   secretary_signature?: string
   signed_at?: string
+  user_signature?: string
   userName: string
   userNip: string
   userJabatan: string
@@ -48,9 +49,11 @@ export default function ApprovalsPage() {
   const [approvedRecords, setApprovedRecords] = useState<BukuKendali[]>([])
   const [loading, setLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
-  const [secretaryProfile, setSecretaryProfile] = useState({ name: '', nip: '' })
+  const [secretaryProfile, setSecretaryProfile] = useState({ name: '', nip: '', signature: '' })
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [signingId, setSigningId] = useState<string | null>(null)
+  const [signMethod, setSignMethod] = useState<'profile' | 'draw' | 'upload'>('draw')
+  const [uploadedSign, setUploadedSign] = useState('')
 
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -99,21 +102,44 @@ export default function ApprovalsPage() {
       setSecretaryProfile({
         name: profile.full_name || '',
         nip: profile.nip || '',
+        signature: profile.signature || '',
       })
 
-      // Load pending buku_kendali with user profiles
-      const { data: bukuData } = await supabase
+      // Load pending buku_kendali
+      const { data: bukuData, error: bkError } = await supabase
         .from('buku_kendali')
-        .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, profiles!user_id(full_name, nip, jabatan, pangkat, unit_kerja, nama_atasan, nip_atasan, jabatan_atasan)`)
+        .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature`)
         .in('status', ['submitted', 'approved'])
         .order('tahun', { ascending: false })
 
-      if (!bukuData) return
+      if (bkError || !bukuData) {
+        console.error('Error loading buku_kendali:', bkError)
+        return
+      }
+
+      // Load user profiles for these records
+      const userIds = Array.from(new Set(bukuData.map(b => b.user_id)))
+      const profilesMap = new Map()
+
+      if (userIds.length > 0) {
+        const { data: profilesData, error: profError } = await supabase
+          .from('profiles')
+          .select('id, full_name, nip, jabatan, pangkat, unit_kerja, nama_atasan, nip_atasan, jabatan_atasan')
+          .in('id', userIds)
+
+        if (profError) {
+          console.error('Error loading profiles:', profError)
+        } else if (profilesData) {
+          profilesData.forEach(p => {
+            profilesMap.set(p.id, p)
+          })
+        }
+      }
 
       const enriched: BukuKendali[] = []
 
       for (const buku of bukuData) {
-        const p = (buku.profiles as any) || {}
+        const p = profilesMap.get(buku.user_id) || {}
         
         // If not admin, only show subordinates whose nip_atasan matches this supervisor's NIP
         if (role !== 'admin' && p.nip_atasan !== profile.nip) {
@@ -140,6 +166,7 @@ export default function ApprovalsPage() {
           secretary_nip: buku.secretary_nip,
           secretary_signature: buku.secretary_signature,
           signed_at: buku.signed_at,
+          user_signature: buku.user_signature,
           userName: p.full_name || 'Unknown',
           userNip: p.nip || '',
           userJabatan: p.jabatan || '',
@@ -202,13 +229,10 @@ export default function ApprovalsPage() {
     canvasRef.current.getContext('2d')?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
   }
 
-  const handleApprove = async (buku: BukuKendali) => {
+  const handleApprove = async (buku: BukuKendali, signatureImg: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-
-      // Get signature image from canvas
-      const signatureImg = canvasRef.current?.toDataURL('image/png') || ''
 
       const now = new Date().toISOString()
       const { error } = await supabase.from('buku_kendali').update({
@@ -348,6 +372,7 @@ export default function ApprovalsPage() {
                     <SKPTemplate
                       profile={{
                         full_name: buku.userName,
+                        user_id: buku.user_id,
                         nip: buku.userNip,
                         pangkat: buku.userPangkat,
                         jabatan: buku.userJabatan,
@@ -355,11 +380,14 @@ export default function ApprovalsPage() {
                         nama_atasan: buku.userNamaAtasan,
                         nip_atasan: buku.userNipAtasan,
                         jabatan_atasan: buku.userJabatanAtasan,
-                      }}
+                      } as any}
                       records={buku.records}
                       bulan={buku.bulan}
                       tahun={buku.tahun}
                       showPrint={false}
+                      signature={{
+                        user_signature: buku.user_signature,
+                      }}
                     />
                   </div>
                 )}
@@ -369,7 +397,7 @@ export default function ApprovalsPage() {
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-4">
                     <h3 className="font-semibold text-blue-900 flex items-center gap-2">
                       <PenLine className="w-4 h-4" />
-                      Tanda Tangan Digital
+                      Tanda Tangan Digital Atasan
                     </h3>
 
                     <div className="grid grid-cols-2 gap-4 text-sm">
@@ -388,36 +416,145 @@ export default function ApprovalsPage() {
                       <a href="/dashboard/profile" className="text-blue-600 underline">profil Anda</a>.
                     </p>
 
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium text-gray-700">Gambar Tanda Tangan:</p>
-                      <div className="border-2 border-dashed border-blue-300 rounded-lg p-2 bg-white">
-                        <canvas
-                          ref={canvasRef}
-                          width={500}
-                          height={120}
-                          className="w-full bg-white rounded cursor-crosshair touch-none"
-                          style={{ touchAction: 'none' }}
-                          onMouseDown={startDraw}
-                          onMouseMove={draw}
-                          onMouseUp={stopDraw}
-                          onMouseLeave={stopDraw}
-                          onTouchStart={startDraw}
-                          onTouchMove={draw}
-                          onTouchEnd={stopDraw}
-                        />
-                        <p className="text-xs text-gray-400 text-center mt-1">
-                          Gambar tanda tangan Anda di sini
-                        </p>
-                      </div>
-                      <Button variant="outline" size="sm" onClick={clearSignature} className="gap-1">
-                        <Eraser className="w-3.5 h-3.5" />
-                        Hapus
-                      </Button>
+                    <div className="flex bg-stone-200 p-0.5 rounded-md text-xs font-medium max-w-sm mb-1">
+                      {secretaryProfile.signature && (
+                        <button
+                          type="button"
+                          onClick={() => setSignMethod('profile')}
+                          className={`flex-1 py-1 rounded-md transition-all ${
+                            signMethod === 'profile' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
+                          }`}
+                        >
+                          Tanda Tangan Profil
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSignMethod('draw')}
+                        className={`flex-1 py-1 rounded-md transition-all ${
+                          signMethod === 'draw' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
+                        }`}
+                      >
+                        Tulis Manual
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSignMethod('upload')}
+                        className={`flex-1 py-1 rounded-md transition-all ${
+                          signMethod === 'upload' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
+                        }`}
+                      >
+                        Unggah Foto
+                      </button>
                     </div>
+
+                    {/* TAB CONTENT: PROFILE */}
+                    {signMethod === 'profile' && secretaryProfile.signature && (
+                      <div className="border border-stone-200 rounded-lg p-3 bg-white text-center max-w-md">
+                        <p className="text-xs text-stone-500 mb-2">Menggunakan tanda tangan dari profil Anda:</p>
+                        <div className="bg-white border rounded p-2 flex justify-center items-center h-28">
+                          <img
+                            src={secretaryProfile.signature}
+                            alt="Tanda Tangan Profil"
+                            className="max-h-24 object-contain"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB CONTENT: DRAW */}
+                    {signMethod === 'draw' && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-gray-700">Gambar Tanda Tangan:</p>
+                        <div className="border-2 border-dashed border-blue-300 rounded-lg p-2 bg-white max-w-md">
+                          <canvas
+                            ref={canvasRef}
+                            width={500}
+                            height={120}
+                            className="w-full bg-white rounded cursor-crosshair touch-none"
+                            style={{ touchAction: 'none' }}
+                            onMouseDown={startDraw}
+                            onMouseMove={draw}
+                            onMouseUp={stopDraw}
+                            onMouseLeave={stopDraw}
+                            onTouchStart={startDraw}
+                            onTouchMove={draw}
+                            onTouchEnd={stopDraw}
+                          />
+                          <p className="text-xs text-gray-400 text-center mt-1">
+                            Gambar tanda tangan Anda di sini
+                          </p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={clearSignature} className="gap-1">
+                          <Eraser className="w-3.5 h-3.5" />
+                          Hapus
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* TAB CONTENT: UPLOAD */}
+                    {signMethod === 'upload' && (
+                      <div className="space-y-3 max-w-md">
+                        <div className="border border-stone-200 rounded-lg p-4 bg-white text-center space-y-3">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id={`sign-upload-input-${buku.id}`}
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onloadend = () => {
+                                  setUploadedSign(reader.result as string)
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`sign-upload-input-${buku.id}`}
+                            className="inline-block px-4 py-2 bg-white border border-stone-300 rounded-md text-xs font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer shadow-sm"
+                          >
+                            Pilih File Gambar Tanda Tangan
+                          </label>
+                          
+                          {uploadedSign ? (
+                            <div className="bg-white border rounded p-2 flex justify-center items-center h-28 mt-2">
+                              <img
+                                src={uploadedSign}
+                                alt="Uploaded Signature"
+                                className="max-h-24 object-contain"
+                              />
+                            </div>
+                          ) : (
+                            <div className="h-28 border border-dashed rounded flex justify-center items-center text-xs text-stone-400">
+                              Belum ada gambar terpilih
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="flex gap-3 pt-2">
                       <Button
-                        onClick={() => handleApprove(buku)}
+                        onClick={async () => {
+                          let finalSign = ''
+                          if (signMethod === 'profile') {
+                            finalSign = secretaryProfile.signature || ''
+                          } else if (signMethod === 'upload') {
+                            finalSign = uploadedSign
+                            if (!finalSign) {
+                              alert('Silakan unggah foto tanda tangan terlebih dahulu')
+                              return
+                            }
+                          } else if (signMethod === 'draw') {
+                            if (canvasRef.current) {
+                              finalSign = canvasRef.current.toDataURL('image/png')
+                            }
+                          }
+                          await handleApprove(buku, finalSign)
+                        }}
                         className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
                       >
                         <CheckCircle className="w-4 h-4" />
@@ -498,6 +635,7 @@ export default function ApprovalsPage() {
                           secretary_nip: buku.secretary_nip,
                           secretary_signature: buku.secretary_signature,
                           signed_at: buku.signed_at,
+                          user_signature: buku.user_signature,
                         }}
                       />
                     </div>
