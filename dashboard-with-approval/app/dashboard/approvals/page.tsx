@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { SKPTemplate } from '@/components/skp-template'
-import { CheckCircle, XCircle, Eye, EyeOff, Eraser, PenLine } from 'lucide-react'
+import { CheckCircle, XCircle, Eye, EyeOff, Eraser, PenLine, Trash2, RotateCcw, Edit3 } from 'lucide-react'
 
 interface ActivityRecord {
   id: string
@@ -28,14 +28,14 @@ interface BukuKendali {
   secretary_signature?: string
   signed_at?: string
   user_signature?: string
-  userName: string
-  userNip: string
-  userJabatan: string
-  userPangkat: string
-  userUnitKerja: string
-  userNamaAtasan: string
-  userNipAtasan: string
-  userJabatanAtasan: string
+  userName?: string
+  userNip?: string
+  userPangkat?: string
+  userJabatan?: string
+  userUnitKerja?: string
+  userNamaAtasan?: string
+  userNipAtasan?: string
+  userJabatanAtasan?: string
   records: ActivityRecord[]
 }
 
@@ -52,8 +52,7 @@ export default function ApprovalsPage() {
   const [secretaryProfile, setSecretaryProfile] = useState({ name: '', nip: '', signature: '' })
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [signingId, setSigningId] = useState<string | null>(null)
-  const [signMethod, setSignMethod] = useState<'profile' | 'draw' | 'upload'>('draw')
-  const [uploadedSign, setUploadedSign] = useState('')
+  const [signMethod, setSignMethod] = useState<'profile' | 'draw'>('draw')
 
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -105,6 +104,12 @@ export default function ApprovalsPage() {
         signature: profile.signature || '',
       })
 
+      if (profile.signature) {
+        setSignMethod('profile')
+      } else {
+        setSignMethod('draw')
+      }
+
       // Load pending buku_kendali
       const { data: bukuData, error: bkError } = await supabase
         .from('buku_kendali')
@@ -119,43 +124,61 @@ export default function ApprovalsPage() {
 
       // Load user profiles for these records
       const userIds = Array.from(new Set(bukuData.map(b => b.user_id)))
-      const profilesMap = new Map()
-
-      if (userIds.length > 0) {
-        const { data: profilesData, error: profError } = await supabase
-          .from('profiles')
-          .select('id, full_name, nip, jabatan, pangkat, unit_kerja, nama_atasan, nip_atasan, jabatan_atasan')
-          .in('id', userIds)
-
-        if (profError) {
-          console.error('Error loading profiles:', profError)
-        } else if (profilesData) {
-          profilesData.forEach(p => {
-            profilesMap.set(p.id, p)
-          })
-        }
+      if (userIds.length === 0) {
+        setPendingApprovals([])
+        setApprovedRecords([])
+        setLoading(false)
+        return
       }
 
-      const enriched: BukuKendali[] = []
+      const { data: profilesData, error: pError } = await supabase
+        .from('profiles')
+        .select('id, full_name, nip, pangkat, jabatan, unit_kerja, nama_atasan, nip_atasan, jabatan_atasan')
+        .in('id', userIds)
 
-      for (const buku of bukuData) {
-        const p = profilesMap.get(buku.user_id) || {}
-        
-        // If not admin, only show subordinates whose nip_atasan matches this supervisor's NIP
-        if (role !== 'admin' && p.nip_atasan !== profile.nip) {
-          continue
-        }
+      if (pError || !profilesData) {
+        console.error('Error loading profiles:', pError)
+        return
+      }
 
-        // Load records for this user/month/year
-        const { data: recs } = await supabase
-          .from('activity_records')
-          .select('*')
-          .eq('user_id', buku.user_id)
-          .eq('bulan', buku.bulan)
-          .eq('tahun', buku.tahun)
-          .order('tanggal')
+      // Filter profiles to get subordinates
+      let subordinateIds: string[] = []
+      if (role === 'admin') {
+        subordinateIds = profilesData.map(p => p.id)
+      } else {
+        subordinateIds = profilesData
+          .filter(p => p.nip_atasan === profile.nip)
+          .map(p => p.id)
+      }
 
-        enriched.push({
+      // Filter bukuData to only subordinates
+      const filteredBuku = bukuData.filter(b => subordinateIds.includes(b.user_id))
+      if (filteredBuku.length === 0) {
+        setPendingApprovals([])
+        setApprovedRecords([])
+        setLoading(false)
+        return
+      }
+
+      // Fetch records for these users
+      const { data: recordsData, error: rError } = await supabase
+        .from('activity_records')
+        .select('id, user_id, tanggal, hari, uraian_kegiatan, output_hasil, status, bulan, tahun')
+        .in('user_id', subordinateIds)
+        .in('status', ['submitted', 'approved'])
+
+      if (rError || !recordsData) {
+        console.error('Error loading activity records:', rError)
+        return
+      }
+
+      // Enrich and map
+      const enriched: BukuKendali[] = filteredBuku.map(buku => {
+        const uProfile = profilesData.find(p => p.id === buku.user_id)
+        const uRecords = recordsData.filter(
+          r => r.user_id === buku.user_id && r.bulan === buku.bulan && r.tahun === buku.tahun
+        )
+        return {
           id: buku.id,
           user_id: buku.user_id,
           bulan: buku.bulan,
@@ -167,17 +190,17 @@ export default function ApprovalsPage() {
           secretary_signature: buku.secretary_signature,
           signed_at: buku.signed_at,
           user_signature: buku.user_signature,
-          userName: p.full_name || 'Unknown',
-          userNip: p.nip || '',
-          userJabatan: p.jabatan || '',
-          userPangkat: p.pangkat || '',
-          userUnitKerja: p.unit_kerja || '',
-          userNamaAtasan: p.nama_atasan || '',
-          userNipAtasan: p.nip_atasan || '',
-          userJabatanAtasan: p.jabatan_atasan || '',
-          records: recs || [],
-        })
-      }
+          userName: uProfile?.full_name || 'Pegawai',
+          userNip: uProfile?.nip || '',
+          userPangkat: uProfile?.pangkat || '',
+          userJabatan: uProfile?.jabatan || '',
+          userUnitKerja: uProfile?.unit_kerja || '',
+          userNamaAtasan: uProfile?.nama_atasan || '',
+          userNipAtasan: uProfile?.nip_atasan || '',
+          userJabatanAtasan: uProfile?.jabatan_atasan || '',
+          records: uRecords,
+        }
+      })
 
       setPendingApprovals(enriched.filter(b => b.status === 'submitted'))
       setApprovedRecords(enriched.filter(b => b.status === 'approved'))
@@ -188,30 +211,37 @@ export default function ApprovalsPage() {
     }
   }
 
-  // Canvas drawing helpers
   const getPos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
     const scaleY = canvas.height / rect.height
     if ('touches' in e) {
-      return { x: (e.touches[0].clientX - rect.left) * scaleX, y: (e.touches[0].clientY - rect.top) * scaleY }
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY,
+      }
     }
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    }
   }
 
   const startDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault()
-    if (!canvasRef.current) return
+    const canvas = canvasRef.current
+    if (!canvas) return
     setIsDrawing(true)
-    setLastPos(getPos(e, canvasRef.current))
+    setLastPos(getPos(e, canvas))
   }
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     if (!isDrawing || !canvasRef.current) return
-    const ctx = canvasRef.current.getContext('2d')
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
-    const pos = getPos(e, canvasRef.current)
+    const pos = getPos(e, canvas)
     ctx.beginPath()
     ctx.moveTo(lastPos.x, lastPos.y)
     ctx.lineTo(pos.x, pos.y)
@@ -224,42 +254,42 @@ export default function ApprovalsPage() {
   }
 
   const stopDraw = () => setIsDrawing(false)
+
   const clearSignature = () => {
-    if (!canvasRef.current) return
-    canvasRef.current.getContext('2d')?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    ctx?.clearRect(0, 0, canvas.width, canvas.height)
   }
 
   const handleApprove = async (buku: BukuKendali, signatureImg: string) => {
+    setLoading(true)
+    const now = new Date().toISOString()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      // 1. Update buku_kendali table
+      await supabase
+        .from('buku_kendali')
+        .update({
+          status: 'approved',
+          approved_by: user.id,
+          approved_at: now,
+          secretary_signature: signatureImg,
+          secretary_name: secretaryProfile.name,
+          secretary_nip: secretaryProfile.nip,
+          signed_at: now,
+        })
+        .eq('id', buku.id)
 
-      const now = new Date().toISOString()
-      const { error } = await supabase.from('buku_kendali').update({
-        status: 'approved',
-        approved_by: user.id,
-        approved_at: now,
-        secretary_name: secretaryProfile.name,
-        secretary_nip: secretaryProfile.nip,
-        secretary_signature: signatureImg,
-        signed_at: now,
-      }).eq('id', buku.id)
-
-      if (error) throw error
-
-      // Update activity records to approved
-      await supabase.from('activity_records')
+      // 2. Update activity records to approved
+      await supabase
+        .from('activity_records')
         .update({ status: 'approved' })
         .eq('user_id', buku.user_id)
         .eq('bulan', buku.bulan)
         .eq('tahun', buku.tahun)
-
-      // Add to approval history
-      await supabase.from('approval_history').insert([{
-        buku_kendali_id: buku.id,
-        approved_by: user.id,
-        status: 'approved',
-      }]).then(() => {})
 
       setSigningId(null)
       clearSignature()
@@ -267,6 +297,8 @@ export default function ApprovalsPage() {
     } catch (err) {
       console.error(err)
       alert('Gagal menyetujui dokumen')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -274,7 +306,7 @@ export default function ApprovalsPage() {
     if (!confirm('Kembalikan dokumen ini ke draft?')) return
     try {
       await supabase.from('buku_kendali').update({ status: 'draft' }).eq('id', bukuId)
-      const buku = pendingApprovals.find(b => b.id === bukuId)
+      const buku = pendingApprovals.find(b => b.id === bukuId) || approvedRecords.find(b => b.id === bukuId)
       if (buku) {
         await supabase.from('activity_records')
           .update({ status: 'draft' })
@@ -289,6 +321,55 @@ export default function ApprovalsPage() {
     }
   }
 
+  const handleCancelApproval = async (bukuId: string) => {
+    if (!confirm('Batalkan persetujuan dokumen ini? Status akan kembali menjadi "Menunggu Persetujuan".')) return
+    try {
+      await supabase.from('buku_kendali')
+        .update({
+          status: 'submitted',
+          approved_by: null,
+          approved_at: null,
+          secretary_signature: null,
+          secretary_name: null,
+          secretary_nip: null,
+          signed_at: null,
+        })
+        .eq('id', bukuId)
+      
+      const buku = approvedRecords.find(b => b.id === bukuId)
+      if (buku) {
+        await supabase.from('activity_records')
+          .update({ status: 'submitted' })
+          .eq('user_id', buku.user_id)
+          .eq('bulan', buku.bulan)
+          .eq('tahun', buku.tahun)
+      }
+      await loadApprovals()
+    } catch (err) {
+      console.error(err)
+      alert('Gagal membatalkan persetujuan')
+    }
+  }
+
+  const handleDeleteBuku = async (bukuId: string) => {
+    if (!confirm('Hapus persetujuan berkas ini? Seluruh berkas buku kendali terpilih akan dihapus dan aktivitas staff akan dikembalikan ke draft.')) return
+    try {
+      const buku = approvedRecords.find(b => b.id === bukuId)
+      if (buku) {
+        await supabase.from('activity_records')
+          .update({ status: 'draft' })
+          .eq('user_id', buku.user_id)
+          .eq('bulan', buku.bulan)
+          .eq('tahun', buku.tahun)
+      }
+      await supabase.from('buku_kendali').delete().eq('id', bukuId)
+      await loadApprovals()
+    } catch (err) {
+      console.error(err)
+      alert('Gagal menghapus berkas')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -297,51 +378,39 @@ export default function ApprovalsPage() {
     )
   }
 
-  if (!userRole) {
+  if (!['secretary', 'head', 'admin'].includes(userRole || '')) {
     return (
-      <Card>
-        <CardContent className="p-8 text-center">
-          <p className="text-gray-500">Anda tidak memiliki akses ke halaman ini.</p>
-        </CardContent>
-      </Card>
+      <div className="p-8 text-center text-gray-500">
+        Anda tidak memiliki akses untuk melihat halaman ini.
+      </div>
     )
   }
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Persetujuan Laporan Kinerja</h1>
-        <p className="text-gray-600 mt-1">Review dan tanda tangani laporan kinerja harian staff</p>
+        <h1 className="text-3xl font-bold text-gray-900">Persetujuan Laporan</h1>
+        <p className="text-gray-600 mt-1">Review dan tandatangani buku kendali bulanan yang diajukan oleh staff</p>
       </div>
 
       {/* === PENDING === */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Menunggu Tanda Tangan
-          {pendingApprovals.length > 0 && (
-            <span className="ml-2 bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-sm">
-              {pendingApprovals.length}
-            </span>
-          )}
-        </h2>
-
+        <h2 className="text-xl font-semibold text-gray-800">Menunggu Persetujuan</h2>
         {pendingApprovals.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center text-gray-500">
-              Tidak ada laporan yang menunggu persetujuan
-            </CardContent>
-          </Card>
+          <p className="text-gray-500 text-sm italic">Tidak ada buku kendali yang menunggu persetujuan.</p>
         ) : (
           pendingApprovals.map(buku => (
-            <Card key={buku.id} className="border-l-4 border-l-yellow-400">
-              <CardHeader>
+            <Card key={buku.id} className="border-l-4 border-l-amber-500">
+              <CardContent className="pt-6 space-y-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-lg">{buku.userName}</CardTitle>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {buku.userJabatan} — {MONTHS[buku.bulan - 1]} {buku.tahun}
+                    <h3 className="font-semibold text-lg">{buku.userName}</h3>
+                    <p className="text-sm text-gray-500">
+                      Sub bagian / jabatan: {buku.userUnitKerja || buku.userJabatan || '—'}
                     </p>
-                    <p className="text-xs text-gray-400">NIP: {buku.userNip} • {buku.records.length} catatan</p>
+                    <p className="text-sm text-gray-500">
+                      Bulan: <strong className="text-stone-700">{MONTHS[buku.bulan - 1]} {buku.tahun}</strong> — {buku.records.length} catatan
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <Button
@@ -351,28 +420,28 @@ export default function ApprovalsPage() {
                       className="gap-1"
                     >
                       {previewId === buku.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      {previewId === buku.id ? 'Tutup' : 'Preview'}
+                      {previewId === buku.id ? 'Tutup' : 'Lihat'}
                     </Button>
                     <Button
+                      onClick={() => {
+                        setSigningId(signingId === buku.id ? null : buku.id)
+                        clearSignature()
+                      }}
+                      className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                       size="sm"
-                      onClick={() => setSigningId(signingId === buku.id ? null : buku.id)}
-                      className="gap-1 bg-blue-600 hover:bg-blue-700"
                     >
                       <PenLine className="w-4 h-4" />
                       Tanda Tangan
                     </Button>
                   </div>
                 </div>
-              </CardHeader>
 
-              <CardContent className="space-y-4">
-                {/* Preview template */}
+                {/* Document preview panel */}
                 {previewId === buku.id && (
-                  <div className="border rounded-lg overflow-hidden">
+                  <div className="border rounded-lg overflow-hidden mt-4">
                     <SKPTemplate
                       profile={{
                         full_name: buku.userName,
-                        user_id: buku.user_id,
                         nip: buku.userNip,
                         pangkat: buku.userPangkat,
                         jabatan: buku.userJabatan,
@@ -416,13 +485,13 @@ export default function ApprovalsPage() {
                       <a href="/dashboard/profile" className="text-blue-600 underline">profil Anda</a>.
                     </p>
 
-                    <div className="flex bg-stone-200 p-0.5 rounded-md text-xs font-medium max-w-sm mb-1">
+                    <div className="flex bg-stone-200 p-0.5 rounded-md text-xs font-medium max-w-xs mb-1">
                       {secretaryProfile.signature && (
                         <button
                           type="button"
                           onClick={() => setSignMethod('profile')}
                           className={`flex-1 py-1 rounded-md transition-all ${
-                            signMethod === 'profile' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
+                            signMethod === 'profile' ? 'bg-white shadow text-stone-900 font-semibold' : 'text-stone-500 hover:text-stone-900'
                           }`}
                         >
                           Tanda Tangan Profil
@@ -432,19 +501,10 @@ export default function ApprovalsPage() {
                         type="button"
                         onClick={() => setSignMethod('draw')}
                         className={`flex-1 py-1 rounded-md transition-all ${
-                          signMethod === 'draw' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
+                          signMethod === 'draw' ? 'bg-white shadow text-stone-900 font-semibold' : 'text-stone-500 hover:text-stone-900'
                         }`}
                       >
                         Tulis Manual
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSignMethod('upload')}
-                        className={`flex-1 py-1 rounded-md transition-all ${
-                          signMethod === 'upload' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
-                        }`}
-                      >
-                        Unggah Foto
                       </button>
                     </div>
 
@@ -492,62 +552,12 @@ export default function ApprovalsPage() {
                       </div>
                     )}
 
-                    {/* TAB CONTENT: UPLOAD */}
-                    {signMethod === 'upload' && (
-                      <div className="space-y-3 max-w-md">
-                        <div className="border border-stone-200 rounded-lg p-4 bg-white text-center space-y-3">
-                          <input
-                            type="file"
-                            accept="image/*"
-                            id={`sign-upload-input-${buku.id}`}
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              if (file) {
-                                const reader = new FileReader()
-                                reader.onloadend = () => {
-                                  setUploadedSign(reader.result as string)
-                                }
-                                reader.readAsDataURL(file)
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor={`sign-upload-input-${buku.id}`}
-                            className="inline-block px-4 py-2 bg-white border border-stone-300 rounded-md text-xs font-semibold text-stone-700 hover:bg-stone-50 cursor-pointer shadow-sm"
-                          >
-                            Pilih File Gambar Tanda Tangan
-                          </label>
-                          
-                          {uploadedSign ? (
-                            <div className="bg-white border rounded p-2 flex justify-center items-center h-28 mt-2">
-                              <img
-                                src={uploadedSign}
-                                alt="Uploaded Signature"
-                                className="max-h-24 object-contain"
-                              />
-                            </div>
-                          ) : (
-                            <div className="h-28 border border-dashed rounded flex justify-center items-center text-xs text-stone-400">
-                              Belum ada gambar terpilih
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
                     <div className="flex gap-3 pt-2">
                       <Button
                         onClick={async () => {
                           let finalSign = ''
                           if (signMethod === 'profile') {
                             finalSign = secretaryProfile.signature || ''
-                          } else if (signMethod === 'upload') {
-                            finalSign = uploadedSign
-                            if (!finalSign) {
-                              alert('Silakan unggah foto tanda tangan terlebih dahulu')
-                              return
-                            }
                           } else if (signMethod === 'draw') {
                             if (canvasRef.current) {
                               finalSign = canvasRef.current.toDataURL('image/png')
@@ -588,9 +598,9 @@ export default function ApprovalsPage() {
             {approvedRecords.map(buku => (
               <Card key={buku.id} className="border-l-4 border-l-green-500">
                 <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between flex-wrap gap-4">
                     <div>
-                      <p className="font-semibold">{buku.userName}</p>
+                      <p className="font-semibold text-base">{buku.userName}</p>
                       <p className="text-sm text-gray-500">
                         {MONTHS[buku.bulan - 1]} {buku.tahun} — {buku.records.length} catatan
                       </p>
@@ -603,15 +613,48 @@ export default function ApprovalsPage() {
                         </p>
                       )}
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPreviewId(previewId === buku.id ? null : buku.id)}
-                      className="gap-1"
-                    >
-                      {previewId === buku.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      {previewId === buku.id ? 'Tutup' : 'Lihat Dokumen'}
-                    </Button>
+                    
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPreviewId(previewId === buku.id ? null : buku.id)}
+                        className="gap-1 text-gray-700"
+                      >
+                        {previewId === buku.id ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {previewId === buku.id ? 'Tutup' : 'Lihat Dokumen'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCancelApproval(buku.id)}
+                        className="gap-1 text-amber-700 hover:text-amber-800 border-amber-200 hover:bg-amber-50"
+                        title="Batalkan persetujuan untuk mengubah tanda tangan atau detail"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                        Edit/Batal
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleReject(buku.id)}
+                        className="gap-1 text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
+                        title="Kembalikan laporan ini ke staff (Tolak)"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        Tolak
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteBuku(buku.id)}
+                        className="gap-1 text-stone-600 hover:text-stone-700 border-stone-200 hover:bg-stone-50"
+                        title="Hapus berkas persetujuan"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Hapus
+                      </Button>
+                    </div>
                   </div>
 
                   {previewId === buku.id && (
@@ -626,7 +669,7 @@ export default function ApprovalsPage() {
                           nama_atasan: buku.userNamaAtasan,
                           nip_atasan: buku.userNipAtasan,
                           jabatan_atasan: buku.userJabatanAtasan,
-                        }}
+                        } as any}
                         records={buku.records}
                         bulan={buku.bulan}
                         tahun={buku.tahun}
