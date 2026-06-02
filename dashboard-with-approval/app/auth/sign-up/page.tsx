@@ -68,6 +68,8 @@ export default function Page() {
   const [pangkat, setPangkat] = useState('')
   const [jabatan, setJabatan] = useState('')
   const [subBagian, setSubBagian] = useState('')
+  const [isManualSubBagian, setIsManualSubBagian] = useState(false)
+  const [manualSubBagian, setManualSubBagian] = useState('')
 
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -93,11 +95,12 @@ export default function Page() {
     if (!nip.trim()) { setError('NIP wajib diisi.'); return }
     if (!pangkat) { setError('Pangkat/Golongan wajib dipilih.'); return }
     if (!jabatan.trim()) { setError('Jabatan wajib diisi.'); return }
-    if (!subBagian) { setError('Sub Bagian wajib dipilih.'); return }
 
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
+
+    const finalSubBagian = isManualSubBagian ? manualSubBagian : subBagian
 
     try {
       // 1. Daftarkan akun
@@ -123,7 +126,7 @@ export default function Page() {
           nip: nip,
           pangkat: pangkat,
           jabatan: jabatan,
-          unit_kerja: subBagian,
+          unit_kerja: finalSubBagian,
           updated_at: new Date().toISOString(),
         })
         if (profileError) {
@@ -329,18 +332,54 @@ export default function Page() {
                     {/* Sub Bagian */}
                     <div className="grid gap-2">
                       <Label htmlFor="subBagian" className="text-white/80">
-                        Bagian / Sub Bagian <span className="text-red-400">*</span>
+                        Bagian / Sub Bagian <span className="text-white/40 font-normal">(Opsional)</span>
                       </Label>
-                      <Select value={subBagian} onValueChange={setSubBagian} required>
-                        <SelectTrigger id="subBagian" className="h-11 bg-white/10 border-white/20 text-white">
-                          <SelectValue placeholder="Pilih sub bagian..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SUB_BAGIAN_OPTIONS.map((s) => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {!isManualSubBagian ? (
+                        <Select
+                          value={subBagian}
+                          onValueChange={(v) => {
+                            if (v === 'manual') {
+                              setIsManualSubBagian(true)
+                              setSubBagian('')
+                            } else {
+                              setSubBagian(v)
+                            }
+                          }}
+                        >
+                          <SelectTrigger id="subBagian" className="h-11 bg-white/10 border-white/20 text-white">
+                            <SelectValue placeholder="Pilih bagian..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SUB_BAGIAN_OPTIONS.map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                            <SelectItem value="manual" className="font-semibold text-yellow-500">
+                              + Tulis Manual...
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Input
+                            type="text"
+                            placeholder="Tulis Bagian / Sub Bagian..."
+                            value={manualSubBagian}
+                            onChange={(e) => setManualSubBagian(e.target.value)}
+                            className="h-11 bg-white/10 border-white/20 text-white flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              setIsManualSubBagian(false)
+                              setManualSubBagian('')
+                            }}
+                            className="h-11 px-3 border-white/20 bg-white/10 hover:bg-white/20 text-white"
+                          >
+                            Kembali
+                          </Button>
+                        </div>
+                      )}
                     </div>
 
                     {error && (

@@ -84,6 +84,12 @@ export default function UsersPage() {
   const [unitKerja, setUnitKerja] = useState('')
   const [role, setRole] = useState<'staff' | 'head' | 'secretary' | 'admin'>('staff')
 
+  // New states for manual writing
+  const [isManualUnitCreate, setIsManualUnitCreate] = useState(false)
+  const [manualUnitCreate, setManualUnitCreate] = useState('')
+  const [isManualUnitEdit, setIsManualUnitEdit] = useState(false)
+  const [manualUnitEdit, setManualUnitEdit] = useState('')
+
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -144,6 +150,10 @@ export default function UsersPage() {
     setJabatan('')
     setUnitKerja('')
     setRole('staff')
+    setIsManualUnitCreate(false)
+    setManualUnitCreate('')
+    setIsManualUnitEdit(false)
+    setManualUnitEdit('')
     setError(null)
     setSuccess(null)
   }
@@ -155,8 +165,8 @@ export default function UsersPage() {
     setError(null)
     setSuccess(null)
 
-    if (!email.trim() || !password.trim() || !fullName.trim() || !nip.trim() || !pangkat || !jabatan.trim() || !unitKerja) {
-      setError('Semua kolom wajib diisi.')
+    if (!email.trim() || !password.trim() || !fullName.trim() || !nip.trim() || !pangkat || !jabatan.trim()) {
+      setError('Harap isi semua kolom wajib (kecuali Bagian / Sub Bagian).')
       setSubmitting(false)
       return
     }
@@ -181,6 +191,8 @@ export default function UsersPage() {
       if (signUpErr) throw signUpErr
       if (!signUpData.user) throw new Error('Gagal mendaftarkan user baru.')
 
+      const finalUnitKerja = isManualUnitCreate ? manualUnitCreate : unitKerja
+
       // 3. Insert user profile metadata using the main admin client
       const { error: profileErr } = await supabase.from('profiles').insert([{
         id: signUpData.user.id,
@@ -188,7 +200,7 @@ export default function UsersPage() {
         nip,
         pangkat,
         jabatan,
-        unit_kerja: unitKerja,
+        unit_kerja: finalUnitKerja,
         role,
         updated_at: new Date().toISOString(),
       }])
@@ -218,6 +230,8 @@ export default function UsersPage() {
     setSuccess(null)
 
     try {
+      const finalUnitKerja = isManualUnitEdit ? manualUnitEdit : unitKerja
+
       const { error: editErr } = await supabase
         .from('profiles')
         .update({
@@ -225,7 +239,7 @@ export default function UsersPage() {
           nip,
           pangkat,
           jabatan,
-          unit_kerja: unitKerja,
+          unit_kerja: finalUnitKerja,
           role,
           updated_at: new Date().toISOString(),
         })
@@ -278,7 +292,18 @@ export default function UsersPage() {
     setNip(p.nip || '')
     setPangkat(p.pangkat || '')
     setJabatan(p.jabatan || '')
-    setUnitKerja(p.unit_kerja || '')
+    
+    // Check if the loaded unit_kerja exists in standard options
+    if (p.unit_kerja && !SUB_BAGIAN_OPTIONS.includes(p.unit_kerja)) {
+      setIsManualUnitEdit(true)
+      setManualUnitEdit(p.unit_kerja)
+      setUnitKerja('')
+    } else {
+      setIsManualUnitEdit(false)
+      setManualUnitEdit('')
+      setUnitKerja(p.unit_kerja || '')
+    }
+
     setRole(p.role || 'staff')
     setIsEditOpen(true)
   }
@@ -502,17 +527,50 @@ export default function UsersPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label htmlFor="create-unit">Bagian / Sub Bagian <span className="text-red-500">*</span></Label>
-                <Select value={unitKerja} onValueChange={setUnitKerja} required>
-                  <SelectTrigger id="create-unit" className="bg-white border border-stone-200">
-                    <SelectValue placeholder="Pilih bagian..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white text-stone-900 border border-stone-200">
-                    {SUB_BAGIAN_OPTIONS.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="create-unit">Bagian / Sub Bagian <span className="text-stone-400 font-normal">(Opsional)</span></Label>
+                {!isManualUnitCreate ? (
+                  <Select value={unitKerja} onValueChange={(v) => {
+                    if (v === 'manual') {
+                      setIsManualUnitCreate(true)
+                      setUnitKerja('')
+                    } else {
+                      setUnitKerja(v)
+                    }
+                  }}>
+                    <SelectTrigger id="create-unit" className="bg-white border border-stone-200">
+                      <SelectValue placeholder="Pilih bagian..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white text-stone-900 border border-stone-200">
+                      {SUB_BAGIAN_OPTIONS.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                      <SelectItem value="manual" className="font-semibold text-yellow-600">
+                        + Tulis Manual...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Tulis bagian..."
+                      value={manualUnitCreate}
+                      onChange={(e) => setManualUnitCreate(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsManualUnitCreate(false)
+                        setManualUnitCreate('')
+                      }}
+                      className="px-3 border-stone-300"
+                    >
+                      Batal
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="create-role">Hak Akses (Role) <span className="text-red-500">*</span></Label>
@@ -607,17 +665,50 @@ export default function UsersPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <Label htmlFor="edit-unit">Bagian / Sub Bagian <span className="text-red-500">*</span></Label>
-                <Select value={unitKerja} onValueChange={setUnitKerja} required>
-                  <SelectTrigger id="edit-unit" className="bg-white border border-stone-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white text-stone-900 border border-stone-200">
-                    {SUB_BAGIAN_OPTIONS.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="edit-unit">Bagian / Sub Bagian <span className="text-stone-400 font-normal">(Opsional)</span></Label>
+                {!isManualUnitEdit ? (
+                  <Select value={unitKerja} onValueChange={(v) => {
+                    if (v === 'manual') {
+                      setIsManualUnitEdit(true)
+                      setUnitKerja('')
+                    } else {
+                      setUnitKerja(v)
+                    }
+                  }}>
+                    <SelectTrigger id="edit-unit" className="bg-white border border-stone-200">
+                      <SelectValue placeholder="Pilih bagian..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white text-stone-900 border border-stone-200">
+                      {SUB_BAGIAN_OPTIONS.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                      <SelectItem value="manual" className="font-semibold text-yellow-600">
+                        + Tulis Manual...
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Tulis bagian..."
+                      value={manualUnitEdit}
+                      onChange={(e) => setManualUnitEdit(e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsManualUnitEdit(false)
+                        setManualUnitEdit('')
+                      }}
+                      className="px-3 border-stone-300"
+                    >
+                      Batal
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="edit-role">Hak Akses (Role) <span className="text-red-500">*</span></Label>
