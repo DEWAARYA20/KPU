@@ -6,6 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Save, User, Eraser } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface Profile {
   full_name: string
@@ -21,12 +28,21 @@ interface Profile {
   signature?: string
 }
 
+
+interface SupervisorInfo {
+  full_name: string
+  nip: string
+  unit_kerja: string
+  jabatan: string
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile>({
     full_name: '', nip: '', pangkat: '', jabatan: '',
     unit_kerja: '', nama_atasan: '', nip_atasan: '', jabatan_atasan: '',
     role: 'staff', signature: '',
   })
+  const [supervisors, setSupervisors] = useState<SupervisorInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -63,6 +79,21 @@ export default function ProfilePage() {
           img.src = data.signature
         }
       }
+
+      // Fetch registered supervisors
+      const { data: sups } = await supabase
+        .from('profiles')
+        .select('full_name, nip, unit_kerja, jabatan')
+        .or('role.in.(head,secretary,admin),unit_kerja.ilike.Kepala%')
+      
+      if (sups) {
+        // Filter unique supervisors with names and NIPs
+        const uniqueSups = (sups as SupervisorInfo[]).filter(
+          (s, idx, self) => s.full_name && s.nip && self.findIndex(t => t.nip === s.nip) === idx
+        )
+        setSupervisors(uniqueSups)
+      }
+
       setLoading(false)
     }
     loadProfile()
@@ -212,20 +243,92 @@ export default function ProfilePage() {
             <CardDescription>Akan muncul di kolom tanda tangan kanan pada laporan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              { label: 'Nama Atasan Langsung', key: 'nama_atasan', placeholder: 'Nama lengkap + gelar' },
-              { label: 'NIP Atasan', key: 'nip_atasan', placeholder: 'NIP atasan' },
-              { label: 'Jabatan Atasan', key: 'jabatan_atasan', placeholder: 'Contoh: Sekretaris KPU Kota Palu' },
-            ].map(({ label, key, placeholder }) => (
-              <div key={key}>
-                <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                <Input
-                  value={profile[key as keyof Profile] as string}
-                  onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                />
-              </div>
-            ))}
+            {/* Dropdown Select Atasan */}
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Pilih Atasan Terdaftar <span className="text-gray-400 font-normal">(Opsional)</span>
+              </label>
+              <Select
+                onValueChange={(nipVal) => {
+                  const selected = supervisors.find(s => s.nip === nipVal)
+                  if (selected) {
+                    setProfile(p => ({
+                      ...p,
+                      nama_atasan: selected.full_name,
+                      nip_atasan: selected.nip,
+                      jabatan_atasan: selected.unit_kerja || selected.jabatan || '',
+                    }))
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full bg-white text-stone-900 border border-stone-200">
+                  <SelectValue placeholder="Pilih atasan terdaftar..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white text-stone-900 border border-stone-200">
+                  {supervisors.map((s) => (
+                    <SelectItem key={s.nip} value={s.nip}>
+                      {s.full_name} ({s.unit_kerja || s.jabatan || 'Atasan'})
+                    </SelectItem>
+                  ))}
+                  {supervisors.length === 0 && (
+                    <div className="p-2 text-sm text-stone-400 text-center">Tidak ada atasan terdaftar</div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="h-px bg-stone-100 my-2" />
+
+            {/* Nama Atasan */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nama Atasan Langsung</label>
+              <Input
+                value={profile.nama_atasan}
+                onChange={e => setProfile(p => ({ ...p, nama_atasan: e.target.value }))}
+                placeholder="Nama lengkap + gelar"
+              />
+            </div>
+
+            {/* NIP Atasan */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">NIP Atasan</label>
+              <Input
+                value={profile.nip_atasan}
+                onChange={async (e) => {
+                  const val = e.target.value
+                  setProfile(p => ({ ...p, nip_atasan: val }))
+                  
+                  // Trigger lookup when NIP is exactly 18 digits (Indonesian NIP length)
+                  const cleanNip = val.replace(/\D/g, '')
+                  if (cleanNip.length === 18) {
+                    const { data, error } = await supabase
+                      .from('profiles')
+                      .select('full_name, unit_kerja, jabatan')
+                      .eq('nip', cleanNip)
+                      .maybeSingle()
+                    
+                    if (!error && data) {
+                      setProfile(p => ({
+                        ...p,
+                        nama_atasan: data.full_name || p.nama_atasan,
+                        jabatan_atasan: data.unit_kerja || data.jabatan || p.jabatan_atasan,
+                      }))
+                    }
+                  }
+                }}
+                placeholder="NIP atasan"
+              />
+            </div>
+
+            {/* Jabatan Atasan */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Jabatan Atasan</label>
+              <Input
+                value={profile.jabatan_atasan}
+                onChange={e => setProfile(p => ({ ...p, jabatan_atasan: e.target.value }))}
+                placeholder="Contoh: Sekretaris KPU Kota Palu"
+              />
+            </div>
           </CardContent>
         </Card>
 
