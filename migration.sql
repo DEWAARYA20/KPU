@@ -31,4 +31,7 @@ BEGIN
   END IF;
 END $$;
 
+-- 4. Tambah kolom skp_items ke tabel profiles
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS skp_items TEXT[];
+
 -- Selesai! ✅

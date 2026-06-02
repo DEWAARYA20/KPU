@@ -1,8 +1,16 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Printer } from 'lucide-react'
+import { Printer, Settings, Plus, Trash2, RotateCcw } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 interface ActivityRecord {
   id: string
@@ -39,6 +47,8 @@ interface SKPTemplateProps {
   tahun: number
   signature?: SignatureData
   showPrint?: boolean
+  customPeriodText?: string
+  onProfileUpdate?: (profile: UserProfile) => void
 }
 
 const MONTH_NAMES = [
@@ -85,12 +95,52 @@ export function SKPTemplate({
   tahun,
   signature,
   showPrint = true,
+  customPeriodText,
+  onProfileUpdate,
 }: SKPTemplateProps) {
   const printRef = useRef<HTMLDivElement>(null)
+  const [isManageOpen, setIsManageOpen] = useState(false)
+  const [editingSkpItems, setEditingSkpItems] = useState<string[]>([])
+  const [isSaving, setIsSaving] = useState(false)
 
   const skpItems = (profile.skp_items && profile.skp_items.length > 0)
     ? profile.skp_items
     : DEFAULT_SKP_ITEMS
+
+  const handleSaveSKP = async () => {
+    setIsSaving(true)
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('User tidak ditemukan')
+        return
+      }
+
+      // Filter empty items
+      const cleanedItems = editingSkpItems.map(i => i.trim()).filter(Boolean)
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({ skp_items: cleanedItems })
+        .eq('id', user.id)
+
+      if (error) throw error
+
+      if (onProfileUpdate) {
+        onProfileUpdate({
+          ...profile,
+          skp_items: cleanedItems,
+        })
+      }
+      setIsManageOpen(false)
+    } catch (err) {
+      console.error(err)
+      alert('Gagal menyimpan uraian tugas SKP')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const handlePrint = () => {
     if (!printRef.current) return
@@ -101,7 +151,7 @@ export function SKPTemplate({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Laporan Kinerja Harian - ${MONTH_NAMES[bulan - 1]} ${tahun}</title>
+          <title>Laporan Kinerja Harian - ${customPeriodText || `${MONTH_NAMES[bulan - 1]} ${tahun}`}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: Arial, sans-serif; font-size: 10pt; padding: 12mm; }
@@ -141,13 +191,114 @@ export function SKPTemplate({
   return (
     <div className="space-y-3">
       {showPrint && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditingSkpItems([...skpItems])
+              setIsManageOpen(true)
+            }}
+            className="gap-2 border-stone-300 text-stone-700 hover:bg-stone-50"
+          >
+            <Settings className="w-4 h-4" />
+            Kelola Uraian Tugas (SKP)
+          </Button>
           <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
             <Printer className="w-4 h-4" />
             Cetak Dokumen
           </Button>
         </div>
       )}
+
+      <Dialog open={isManageOpen} onOpenChange={setIsManageOpen}>
+        <DialogContent className="max-w-2xl bg-white text-stone-900 border border-stone-200">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-stone-800">
+              <Settings className="w-5 h-5 text-red-700" />
+              Kelola Uraian Tugas SKP
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 my-2 overflow-y-auto max-h-[50vh] pr-2">
+            {editingSkpItems.map((item, idx) => (
+              <div key={idx} className="flex gap-2 items-start border-b border-stone-100 pb-3">
+                <span className="font-bold text-stone-400 mt-2 w-6 text-center">{idx + 1}</span>
+                <textarea
+                  value={item}
+                  onChange={(e) => {
+                    const newItems = [...editingSkpItems]
+                    newItems[idx] = e.target.value
+                    setEditingSkpItems(newItems)
+                  }}
+                  className="flex-1 min-h-[60px] p-2 border border-stone-300 rounded-md text-sm focus:ring-1 focus:ring-red-500 focus:border-red-500 bg-white"
+                  placeholder="Tulis uraian tugas SKP..."
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    const newItems = editingSkpItems.filter((_, i) => i !== idx)
+                    setEditingSkpItems(newItems)
+                  }}
+                  className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+
+            {editingSkpItems.length === 0 && (
+              <p className="text-center text-stone-500 text-sm py-4">Belum ada uraian tugas SKP. Klik Tambah Uraian Tugas untuk membuat baru.</p>
+            )}
+          </div>
+
+          <div className="flex justify-between gap-2 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditingSkpItems(DEFAULT_SKP_ITEMS)}
+              className="gap-1 border-stone-300 text-stone-700 hover:bg-stone-50"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset ke Default
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setEditingSkpItems([...editingSkpItems, ''])}
+              className="gap-1 border-stone-300 text-stone-700 hover:bg-stone-50"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Tambah Uraian Tugas
+            </Button>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 mt-4 border-t border-stone-100 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsManageOpen(false)}
+              className="border-stone-300 text-stone-700"
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveSKP}
+              disabled={isSaving}
+              style={{ backgroundColor: '#7a0000', color: '#fff' }}
+              className="hover:bg-red-900"
+            >
+              {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div
         ref={printRef}
@@ -188,7 +339,7 @@ export function SKPTemplate({
                 colSpan={5}
                 style={headerCell({ textAlign: 'center', fontSize: '11pt', padding: '8px' })}
               >
-                LAPORAN KINERJA
+                LAPORAN KINERJA {customPeriodText ? `(PERIODE: ${customPeriodText})` : `(BULAN: ${MONTH_NAMES[bulan - 1]} ${tahun})`}
               </td>
             </tr>
             <tr>

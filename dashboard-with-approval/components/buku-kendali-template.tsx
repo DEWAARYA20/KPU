@@ -12,6 +12,7 @@ interface BukuKendaliData {
   bulan: number
   tahun: number
   institusi?: string
+  periodeText?: string
 }
 
 const MONTH_NAMES = [
@@ -31,7 +32,7 @@ export function BukuKendaliTemplate({ data }: { data: BukuKendaliData }) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Cover Buku Kendali - ${MONTH_NAMES[data.bulan - 1]} ${data.tahun}</title>
+          <title>Cover Buku Kendali - ${data.periodeText || `${MONTH_NAMES[data.bulan - 1]} ${data.tahun}`}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: flex-start; padding: 20px; }
@@ -93,7 +94,7 @@ export function BukuKendaliTemplate({ data }: { data: BukuKendaliData }) {
               BUKU KENDALI
             </p>
             <p style={{ fontWeight: 'bold', fontSize: '15px', letterSpacing: '0.5px' }}>
-              PERIODE BULAN {monthName} {data.tahun}
+              {data.periodeText ? `PERIODE ${data.periodeText}` : `PERIODE BULAN ${monthName} ${data.tahun}`}
             </p>
           </div>
 
