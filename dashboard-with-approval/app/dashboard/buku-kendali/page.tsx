@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SKPTemplate } from '@/components/skp-template'
 import { BukuKendaliTemplate } from '@/components/buku-kendali-template'
-import { Send, CheckCircle2, Clock, FileText } from 'lucide-react'
+import { Send, CheckCircle2, Clock, FileText, Pencil, Trash2 } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -141,6 +141,13 @@ export default function BukuKendaliPage() {
   const [signMethod, setSignMethod] = useState<'profile' | 'draw' | 'upload'>('draw')
   const [uploadedSign, setUploadedSign] = useState('')
 
+  // CRUD state
+  const [editingRecord, setEditingRecord] = useState<ActivityRecord | null>(null)
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ tanggal: '', hari: '', uraian_kegiatan: '', output_hasil: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
   const getPos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect()
     const scaleX = canvas.width / rect.width
@@ -179,6 +186,87 @@ export default function BukuKendaliPage() {
   const clearSignature = () => {
     if (!canvasRef.current) return
     canvasRef.current.getContext('2d')?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
+  }
+
+  // CRUD helpers
+  const getDayName = (dateStr: string) => {
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+    const d = new Date(dateStr + 'T00:00:00')
+    return days[d.getDay()]
+  }
+
+  const refreshRecords = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data: activities } = await supabase
+      .from('activity_records')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('tahun', selectedYear)
+      .order('tanggal', { ascending: true })
+    const grouped: Record<number, ActivityRecord[]> = {}
+    if (activities) {
+      activities.forEach(r => {
+        const m = r.bulan - 1
+        if (!grouped[m]) grouped[m] = []
+        grouped[m].push(r)
+      })
+    }
+    setRecords(grouped)
+  }
+
+  const openEditRecord = (record: ActivityRecord) => {
+    setEditingRecord(record)
+    setEditForm({
+      tanggal: record.tanggal,
+      hari: record.hari,
+      uraian_kegiatan: record.uraian_kegiatan,
+      output_hasil: record.output_hasil,
+    })
+    setIsEditOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingRecord) return
+    setSavingEdit(true)
+    try {
+      const hari = getDayName(editForm.tanggal)
+      const { error } = await supabase
+        .from('activity_records')
+        .update({
+          tanggal: editForm.tanggal,
+          hari,
+          uraian_kegiatan: editForm.uraian_kegiatan,
+          output_hasil: editForm.output_hasil,
+        })
+        .eq('id', editingRecord.id)
+      if (error) throw error
+      await refreshRecords()
+      setIsEditOpen(false)
+    } catch (err) {
+      console.error(err)
+      alert('Gagal menyimpan perubahan')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
+  const handleDeleteRecord = async (id: string) => {
+    if (!confirm('Yakin ingin menghapus catatan ini? Tindakan ini tidak dapat dibatalkan.')) return
+    setDeletingId(id)
+    try {
+      const { error } = await supabase
+        .from('activity_records')
+        .delete()
+        .eq('id', id)
+      if (error) throw error
+      await refreshRecords()
+    } catch (err) {
+      console.error(err)
+      alert('Gagal menghapus catatan')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const currentYear = new Date().getFullYear()
@@ -572,7 +660,77 @@ export default function BukuKendaliPage() {
                 )}
               </div>
 
-              {/* SKP Template */}
+              {/* Kelola Catatan — CRUD Table */}
+              {monthRecords.length > 0 && (
+                <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <h3 className="font-semibold text-sm text-stone-800">
+                      Daftar Catatan — {MONTHS[reportMonth]} {selectedYear}
+                    </h3>
+                    <span className="text-xs text-gray-400">{filteredRecords.length} catatan ditampilkan</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200 text-left">
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 w-8">No</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 whitespace-nowrap">Tanggal</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500">Uraian Kegiatan</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500">Output / Hasil</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 text-center">Status</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 text-center">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredRecords.map((record, idx) => (
+                          <tr key={record.id} className="border-b border-gray-100 hover:bg-gray-50/70 transition-colors">
+                            <td className="px-3 py-2.5 text-gray-400 text-xs">{idx + 1}</td>
+                            <td className="px-3 py-2.5 text-gray-700 whitespace-nowrap text-xs">
+                              {record.hari},<br />
+                              {new Date(record.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </td>
+                            <td className="px-3 py-2.5 text-gray-700 text-xs max-w-[240px]">{record.uraian_kegiatan}</td>
+                            <td className="px-3 py-2.5 text-gray-700 text-xs max-w-[180px]">{record.output_hasil}</td>
+                            <td className="px-3 py-2.5 text-center">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                                record.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                record.status === 'submitted' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-600'
+                              }`}>
+                                {record.status === 'approved' ? 'Disetujui' :
+                                 record.status === 'submitted' ? 'Diajukan' : 'Draft'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex items-center justify-center gap-1">
+                                <button
+                                  onClick={() => openEditRecord(record)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                  title="Edit catatan"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteRecord(record.id)}
+                                  disabled={deletingId === record.id}
+                                  className="p-1.5 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-40"
+                                  title="Hapus catatan"
+                                >
+                                  {deletingId === record.id
+                                    ? <span className="text-xs">...</span>
+                                    : <Trash2 className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* SKP Template (untuk cetak) */}
               {profile.full_name ? (
                 <SKPTemplate
                   profile={profile}
@@ -780,6 +938,77 @@ export default function BukuKendaliPage() {
               className="hover:bg-red-900"
             >
               Kirim & Tanda Tangani
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Record Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-lg bg-white text-stone-900 border border-stone-200">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-blue-600" />
+              Edit Catatan Harian
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 my-2">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Tanggal</label>
+              <input
+                type="date"
+                value={editForm.tanggal}
+                onChange={e => {
+                  const hari = getDayName(e.target.value)
+                  setEditForm(f => ({ ...f, tanggal: e.target.value, hari }))
+                }}
+                className="w-full h-9 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              {editForm.hari && (
+                <p className="text-xs text-gray-400 mt-1">Hari: <span className="font-medium text-gray-600">{editForm.hari}</span></p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Uraian Kegiatan</label>
+              <textarea
+                value={editForm.uraian_kegiatan}
+                onChange={e => setEditForm(f => ({ ...f, uraian_kegiatan: e.target.value }))}
+                rows={4}
+                className="w-full px-3 py-2 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                placeholder="Tulis uraian kegiatan..."
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Output / Hasil</label>
+              <textarea
+                value={editForm.output_hasil}
+                onChange={e => setEditForm(f => ({ ...f, output_hasil: e.target.value }))}
+                rows={3}
+                className="w-full px-3 py-2 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                placeholder="Tulis output atau hasil kegiatan..."
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="mt-4 gap-2 sm:gap-0 border-t border-stone-100 pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEditOpen(false)}
+              className="border-stone-300 text-stone-700"
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveEdit}
+              disabled={savingEdit}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {savingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
             </Button>
           </DialogFooter>
         </DialogContent>
