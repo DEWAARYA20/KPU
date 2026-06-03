@@ -39,6 +39,7 @@ interface SignatureData {
   secretary_signature?: string
   signed_at?: string
   user_signature?: string
+  nilai?: number
 }
 
 interface SKPTemplateProps {
@@ -50,6 +51,7 @@ interface SKPTemplateProps {
   showPrint?: boolean
   customPeriodText?: string
   onProfileUpdate?: (profile: UserProfile) => void
+  isAdminView?: boolean
 }
 
 const MONTH_NAMES = [
@@ -98,6 +100,7 @@ export function SKPTemplate({
   showPrint = true,
   customPeriodText,
   onProfileUpdate,
+  isAdminView = false,
 }: SKPTemplateProps) {
   const printRef = useRef<HTMLDivElement>(null)
   const [isManageOpen, setIsManageOpen] = useState(false)
@@ -187,25 +190,27 @@ export function SKPTemplate({
     : null
 
   const totalRecords = sortedRecords.length
-  const nilaiPersen = totalRecords > 0 ? 100 : 0
+  const nilaiPersen = (signature && typeof signature.nilai === 'number') ? signature.nilai : (totalRecords > 0 ? 100 : 0)
 
   return (
     <div className="space-y-3">
       {showPrint && (
         <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setEditingSkpItems([...skpItems])
-              setIsManageOpen(true)
-            }}
-            className="gap-2 border-stone-300 text-stone-700 hover:bg-stone-50"
-          >
-            <Settings className="w-4 h-4" />
-            Kelola Uraian Tugas (SKP)
-          </Button>
+          {!isAdminView && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEditingSkpItems([...skpItems])
+                setIsManageOpen(true)
+              }}
+              className="gap-2 border-stone-300 text-stone-700 hover:bg-stone-50"
+            >
+              <Settings className="w-4 h-4" />
+              Kelola Uraian Tugas (SKP)
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2">
             <Printer className="w-4 h-4" />
             Cetak Dokumen

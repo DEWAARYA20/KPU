@@ -119,6 +119,7 @@ export function BukuKendaliTemplate({ data }: { data: BukuKendaliData }) {
               .info-row {
                 font-size: 16px !important;
                 margin-bottom: 24px !important;
+                font-weight: bold !important;
               }
               .info-label {
                 width: 130px !important;
@@ -221,10 +222,10 @@ export function BukuKendaliTemplate({ data }: { data: BukuKendaliData }) {
               { label: 'PANGKAT', value: data.pangkat },
               { label: 'JABATAN', value: data.jabatan },
             ].map(({ label, value }) => (
-              <div key={label} className="info-row" style={{ display: 'flex', marginBottom: '14px', fontSize: '13px' }}>
+              <div key={label} className="info-row" style={{ display: 'flex', marginBottom: '14px', fontSize: '13px', fontWeight: 'bold' }}>
                 <span className="info-label" style={{ fontWeight: 'bold', width: '90px', flexShrink: 0 }}>{label}</span>
-                <span className="info-colon" style={{ width: '16px', flexShrink: 0, textAlign: 'center' }}>:</span>
-                <span className="info-value" style={{ flex: 1, fontWeight: '500' }}>{value || '-'}</span>
+                <span className="info-colon" style={{ width: '16px', flexShrink: 0, textAlign: 'center', fontWeight: 'bold' }}>:</span>
+                <span className="info-value" style={{ flex: 1, fontWeight: 'bold' }}>{value || '-'}</span>
               </div>
             ))}
           </div>

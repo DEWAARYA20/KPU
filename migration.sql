@@ -18,6 +18,7 @@ ALTER TABLE buku_kendali ADD COLUMN IF NOT EXISTS secretary_name TEXT;
 ALTER TABLE buku_kendali ADD COLUMN IF NOT EXISTS secretary_nip TEXT;
 ALTER TABLE buku_kendali ADD COLUMN IF NOT EXISTS secretary_signature TEXT;
 ALTER TABLE buku_kendali ADD COLUMN IF NOT EXISTS signed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE buku_kendali ADD COLUMN IF NOT EXISTS nilai INTEGER;
 
 -- 3. Pastikan RLS policy mengizinkan user update profil mereka sendiri
 -- (Jalankan hanya jika belum ada)

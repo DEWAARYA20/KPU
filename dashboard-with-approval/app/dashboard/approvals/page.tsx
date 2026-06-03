@@ -28,6 +28,7 @@ interface BukuKendali {
   secretary_signature?: string
   signed_at?: string
   user_signature?: string
+  nilai?: number
   userName?: string
   userNip?: string
   userPangkat?: string
@@ -53,6 +54,7 @@ export default function ApprovalsPage() {
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [signingId, setSigningId] = useState<string | null>(null)
   const [signMethod, setSignMethod] = useState<'profile' | 'draw'>('draw')
+  const [nilaiApproval, setNilaiApproval] = useState<Record<string, number | ''>>({})
 
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -113,7 +115,7 @@ export default function ApprovalsPage() {
       // Load pending buku_kendali
       const { data: bukuData, error: bkError } = await supabase
         .from('buku_kendali')
-        .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature`)
+        .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature, nilai`)
         .in('status', ['submitted', 'approved'])
         .order('tahun', { ascending: false })
 
@@ -190,6 +192,7 @@ export default function ApprovalsPage() {
           secretary_signature: buku.secretary_signature,
           signed_at: buku.signed_at,
           user_signature: buku.user_signature,
+          nilai: buku.nilai,
           userName: uProfile?.full_name || 'Pegawai',
           userNip: uProfile?.nip || '',
           userPangkat: uProfile?.pangkat || '',
@@ -262,7 +265,7 @@ export default function ApprovalsPage() {
     ctx?.clearRect(0, 0, canvas.width, canvas.height)
   }
 
-  const handleApprove = async (buku: BukuKendali, signatureImg: string) => {
+  const handleApprove = async (buku: BukuKendali, signatureImg: string, nilaiVal: number) => {
     setLoading(true)
     const now = new Date().toISOString()
     const { data: { user } } = await supabase.auth.getUser()
@@ -280,6 +283,7 @@ export default function ApprovalsPage() {
           secretary_name: secretaryProfile.name,
           secretary_nip: secretaryProfile.nip,
           signed_at: now,
+          nilai: nilaiVal,
         })
         .eq('id', buku.id)
 
@@ -456,6 +460,7 @@ export default function ApprovalsPage() {
                       showPrint={false}
                       signature={{
                         user_signature: buku.user_signature,
+                        nilai: buku.nilai,
                       }}
                     />
                   </div>
@@ -485,6 +490,29 @@ export default function ApprovalsPage() {
                       <a href="/dashboard/profile" className="text-blue-600 underline">profil Anda</a>.
                     </p>
 
+                    {/* Nilai Kinerja (skala 1-100) */}
+                    <div className="space-y-1.5 max-w-xs mt-3 mb-2">
+                      <label className="text-xs font-semibold text-stone-700 block">
+                        NILAI KINERJA (SKALA 1-100) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={nilaiApproval[buku.id] ?? ''}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value)
+                          setNilaiApproval(prev => ({
+                            ...prev,
+                            [buku.id]: isNaN(val) ? '' : Math.min(100, Math.max(1, val))
+                          }))
+                        }}
+                        placeholder="Contoh: 85"
+                        className="w-full h-9 px-3 py-1 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-stone-900"
+                        required
+                      />
+                    </div>
+
                     <div className="flex bg-stone-200 p-0.5 rounded-md text-xs font-medium max-w-xs mb-1">
                       {secretaryProfile.signature && (
                         <button
@@ -504,7 +532,7 @@ export default function ApprovalsPage() {
                           signMethod === 'draw' ? 'bg-white shadow text-stone-900 font-semibold' : 'text-stone-500 hover:text-stone-900'
                         }`}
                       >
-                        Tulis Manual
+                        Tanda Tangan Manual
                       </button>
                     </div>
 
@@ -555,6 +583,11 @@ export default function ApprovalsPage() {
                     <div className="flex gap-3 pt-2">
                       <Button
                         onClick={async () => {
+                          const score = nilaiApproval[buku.id]
+                          if (score === undefined || score === '' || score < 1 || score > 100) {
+                            alert('Silakan masukkan nilai kinerja staff (skala 1-100) terlebih dahulu')
+                            return
+                          }
                           let finalSign = ''
                           if (signMethod === 'profile') {
                             finalSign = secretaryProfile.signature || ''
@@ -563,7 +596,7 @@ export default function ApprovalsPage() {
                               finalSign = canvasRef.current.toDataURL('image/png')
                             }
                           }
-                          await handleApprove(buku, finalSign)
+                          await handleApprove(buku, finalSign, score)
                         }}
                         className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
                       >
@@ -604,6 +637,11 @@ export default function ApprovalsPage() {
                       <p className="text-sm text-gray-500">
                         {MONTHS[buku.bulan - 1]} {buku.tahun} — {buku.records.length} catatan
                       </p>
+                      {buku.nilai !== undefined && buku.nilai !== null && (
+                        <p className="text-xs text-stone-600 mt-1 font-semibold">
+                          Nilai Kinerja: <span className="text-green-700">{buku.nilai} / 100</span>
+                        </p>
+                      )}
                       {buku.signed_at && (
                         <p className="text-xs text-gray-400 mt-1">
                           Ditandatangani: {new Date(buku.signed_at).toLocaleDateString('id-ID', {
@@ -679,6 +717,7 @@ export default function ApprovalsPage() {
                           secretary_signature: buku.secretary_signature,
                           signed_at: buku.signed_at,
                           user_signature: buku.user_signature,
+                          nilai: buku.nilai,
                         }}
                       />
                     </div>

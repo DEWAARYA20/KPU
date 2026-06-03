@@ -38,9 +38,11 @@ interface BukuKendali {
   secretary_signature?: string
   signed_at?: string
   user_signature?: string
+  nilai?: number
 }
 
 interface UserProfile {
+  id?: string
   full_name: string
   nip: string
   pangkat: string
@@ -51,6 +53,7 @@ interface UserProfile {
   jabatan_atasan?: string
   skp_items?: string[]
   signature?: string
+  role?: string
 }
 
 const MONTHS = [
@@ -113,6 +116,17 @@ export default function BukuKendaliPage() {
     full_name: '', nip: '', pangkat: '', jabatan: '',
     unit_kerja: '', nama_atasan: '', nip_atasan: '', jabatan_atasan: '',
   })
+  
+  // Admin overview states
+  const [allProfiles, setAllProfiles] = useState<UserProfile[]>([])
+  const [allBukuKendali, setAllBukuKendali] = useState<any[]>([])
+  const [adminMonth, setAdminMonth] = useState(new Date().getMonth())
+  const [adminSearch, setAdminSearch] = useState('')
+  const [selectedAdminUser, setSelectedAdminUser] = useState<UserProfile | null>(null)
+  const [adminUserRecords, setAdminUserRecords] = useState<ActivityRecord[]>([])
+  const [adminUserBuku, setAdminUserBuku] = useState<BukuKendali | null>(null)
+  const [isAdminDetailOpen, setIsAdminDetailOpen] = useState(false)
+  const [loadingAdminDetail, setLoadingAdminDetail] = useState(false)
   const [loading, setLoading]     = useState(true)
   const [submitting, setSubmitting] = useState<number | null>(null)
   const [reportMonth, setReportMonth] = useState(new Date().getMonth())
@@ -314,6 +328,55 @@ export default function BukuKendaliPage() {
     load()
   }, [supabase, selectedYear])
 
+  const loadAdminData = async () => {
+    try {
+      const { data: pData } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('full_name', { ascending: true })
+      if (pData) setAllProfiles(pData as UserProfile[])
+
+      const { data: bkData } = await supabase
+        .from('buku_kendali')
+        .select('*')
+        .eq('bulan', adminMonth + 1)
+        .eq('tahun', selectedYear)
+      if (bkData) setAllBukuKendali(bkData)
+    } catch (err) {
+      console.error('Error loading admin data:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (profile.role === 'admin') {
+      loadAdminData()
+    }
+  }, [profile.role, adminMonth, selectedYear])
+
+  const handleViewUserRekap = async (userProfile: UserProfile) => {
+    setLoadingAdminDetail(true)
+    setSelectedAdminUser(userProfile)
+    setIsAdminDetailOpen(true)
+    try {
+      const existingBuku = allBukuKendali.find(b => b.user_id === userProfile.id)
+      setAdminUserBuku(existingBuku || null)
+
+      const { data: recordsData } = await supabase
+        .from('activity_records')
+        .select('*')
+        .eq('user_id', userProfile.id)
+        .eq('bulan', adminMonth + 1)
+        .eq('tahun', selectedYear)
+        .order('tanggal', { ascending: true })
+
+      setAdminUserRecords(recordsData || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingAdminDetail(false)
+    }
+  }
+
   const handleSubmitForApproval = async (monthIndex: number, signatureBase64: string) => {
     setSubmitting(monthIndex)
     try {
@@ -404,15 +467,23 @@ export default function BukuKendaliPage() {
         </Select>
       </div>
 
-      <Tabs defaultValue="cover" className="w-full">
+      <Tabs defaultValue={profile.role === 'admin' ? "admin-rekap" : "cover"} className="w-full">
         {/* Tab list: COVER + LAPORAN */}
         <TabsList className="flex flex-wrap h-auto gap-1 justify-start bg-gray-100 p-1 rounded-lg">
+          {profile.role === 'admin' && (
+            <TabsTrigger
+              value="admin-rekap"
+              className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-red-800 data-[state=active]:text-white"
+            >
+              REKAP SEMUA PEGAWAI
+            </TabsTrigger>
+          )}
           {/* COVER tab */}
           <TabsTrigger
             value="cover"
             className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-green-500 data-[state=active]:text-white"
           >
-            COVER
+            {profile.role === 'admin' ? 'COVER SAYA' : 'COVER'}
           </TabsTrigger>
 
           {/* LAPORAN tab */}
@@ -420,7 +491,7 @@ export default function BukuKendaliPage() {
             value="laporan"
             className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-white"
           >
-            LAPORAN
+            {profile.role === 'admin' ? 'LAPORAN SAYA' : 'LAPORAN'}
           </TabsTrigger>
         </TabsList>
 
@@ -798,7 +869,7 @@ export default function BukuKendaliPage() {
                   signMethod === 'draw' ? 'bg-white shadow text-stone-900' : 'text-stone-500 hover:text-stone-900'
                 }`}
               >
-                Tulis Manual
+                Tanda Tangan Manual
               </button>
               <button
                 type="button"
@@ -1013,6 +1084,239 @@ export default function BukuKendaliPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  )
-}
+
+        {/* Admin overview tab contents */}
+        {profile.role === 'admin' && (
+          <TabsContent value="admin-rekap" className="space-y-4 mt-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm text-stone-700">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pilih Bulan</label>
+                  <Select
+                    value={`${adminMonth}`}
+                    onValueChange={v => setAdminMonth(parseInt(v))}
+                  >
+                    <SelectTrigger className="w-44 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => (
+                        <SelectItem key={i} value={`${i}`}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="w-full md:w-64 space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Cari Pegawai</label>
+                <input
+                  type="text"
+                  placeholder="Cari nama atau NIP..."
+                  value={adminSearch}
+                  onChange={e => setAdminSearch(e.target.value)}
+                  className="w-full h-9 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-red-800 text-stone-900"
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden text-stone-900">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h3 className="font-bold text-sm text-stone-800">
+                  Rekapitulasi Kinerja Pegawai — {MONTHS[adminMonth]} {selectedYear}
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left border-collapse">
+                  <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-xs font-semibold border-b border-stone-100">
+                    <tr>
+                      <th className="px-6 py-3">No</th>
+                      <th className="px-6 py-3">Nama & NIP</th>
+                      <th className="px-6 py-3">Jabatan & Golongan</th>
+                      <th className="px-6 py-3">Role</th>
+                      <th className="px-6 py-3 text-center">Status Laporan</th>
+                      <th className="px-6 py-3 text-center">Nilai Kinerja</th>
+                      <th className="px-6 py-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {allProfiles
+                      .filter(p => {
+                        const searchLower = adminSearch.toLowerCase()
+                        return (
+                          (p.full_name || '').toLowerCase().includes(searchLower) ||
+                          (p.nip || '').includes(searchLower)
+                        )
+                      })
+                      .map((emp, idx) => {
+                        const empBuku = allBukuKendali.find(b => b.user_id === emp.id)
+                        const status = empBuku?.status || 'none'
+                        
+                        let statusBadge = (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-500">
+                            Belum Ada
+                          </span>
+                        )
+                        if (status === 'draft') {
+                          statusBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                              Draft
+                            </span>
+                          )
+                        } else if (status === 'submitted') {
+                          statusBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 animate-pulse">
+                              Diajukan
+                            </span>
+                          )
+                        } else if (status === 'approved') {
+                          statusBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Disetujui
+                            </span>
+                          )
+                        }
+
+                        let roleBadge = (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            Staf
+                          </span>
+                        )
+                        if (emp.role === 'admin') {
+                          roleBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Admin
+                            </span>
+                          )
+                        } else if (emp.role === 'secretary') {
+                          roleBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              Sekretaris
+                            </span>
+                          )
+                        } else if (emp.role === 'head') {
+                          roleBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Atasan
+                            </span>
+                          )
+                        }
+
+                        return (
+                          <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
+                            <td className="px-6 py-3.5 text-stone-400 text-xs font-medium">{idx + 1}</td>
+                            <td className="px-6 py-3.5">
+                              <div className="font-semibold text-stone-900">{emp.full_name || '—'}</div>
+                              <div className="text-xs text-stone-400">NIP. {emp.nip || '—'}</div>
+                            </td>
+                            <td className="px-6 py-3.5">
+                              <div className="text-stone-700 font-medium text-xs">{emp.jabatan || '—'}</div>
+                              <div className="text-xs text-stone-400">{emp.pangkat || '—'}</div>
+                            </td>
+                            <td className="px-6 py-3.5">{roleBadge}</td>
+                            <td className="px-6 py-3.5 text-center">{statusBadge}</td>
+                            <td className="px-6 py-3.5 text-center font-bold">
+                              {empBuku?.nilai !== undefined && empBuku?.nilai !== null ? (
+                                <span className="text-green-700">{empBuku.nilai}</span>
+                              ) : (
+                                <span className="text-stone-400 font-normal">—</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3.5 text-right">
+                              <Button
+                                onClick={() => handleViewUserRekap(emp)}
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 hover:bg-stone-100"
+                                disabled={status === 'none'}
+                              >
+                                Lihat Rekap
+                              </Button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+        )}
+
+        {/* Admin Detail View Dialog */}
+        <Dialog open={isAdminDetailOpen} onOpenChange={setIsAdminDetailOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-stone-900 border border-stone-200">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-stone-800">
+                <FileText className="w-5 h-5 text-red-700" />
+                Detail Laporan: {selectedAdminUser?.full_name}
+              </DialogTitle>
+            </DialogHeader>
+
+            {loadingAdminDetail ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-700" />
+              </div>
+            ) : (
+              <div className="space-y-6 my-2">
+                <Tabs defaultValue="admin-cover" className="w-full">
+                  <TabsList className="bg-stone-100 p-1 rounded-lg">
+                    <TabsTrigger value="admin-cover" className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-green-500 data-[state=active]:text-white">
+                      COVER DOKUMEN
+                    </TabsTrigger>
+                    <TabsTrigger value="admin-laporan" className="text-xs font-semibold px-3 py-1.5 data-[state=active]:bg-white">
+                      LAPORAN KINERJA & SKP
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="admin-cover" className="mt-4">
+                    {selectedAdminUser ? (
+                      <BukuKendaliTemplate
+                        data={{
+                          nama: selectedAdminUser.full_name,
+                          nip: selectedAdminUser.nip,
+                          pangkat: selectedAdminUser.pangkat,
+                          jabatan: selectedAdminUser.jabatan,
+                          bulan: adminMonth + 1,
+                          tahun: selectedYear,
+                          institusi: 'Sekretariat KPU Kota Palu',
+                        }}
+                      />
+                    ) : (
+                      <p className="text-center text-stone-500 text-sm">Data tidak ditemukan.</p>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="admin-laporan" className="mt-4">
+                    {selectedAdminUser && (
+                       <SKPTemplate
+                         profile={selectedAdminUser}
+                         records={adminUserRecords}
+                         bulan={adminMonth + 1}
+                         tahun={selectedYear}
+                         showPrint={true}
+                         isAdminView={true}
+                         signature={adminUserBuku ? {
+                           secretary_name: adminUserBuku.secretary_name,
+                           secretary_nip: adminUserBuku.secretary_nip,
+                           secretary_signature: adminUserBuku.secretary_signature,
+                           signed_at: adminUserBuku.signed_at,
+                           user_signature: adminUserBuku.user_signature,
+                           nilai: adminUserBuku.nilai,
+                         } : undefined}
+                       />
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
+            <DialogFooter className="pt-3 border-t border-stone-100">
+              <Button type="button" onClick={() => setIsAdminDetailOpen(false)} className="bg-stone-900 hover:bg-stone-800 text-white">
+                Tutup
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    )
+  }

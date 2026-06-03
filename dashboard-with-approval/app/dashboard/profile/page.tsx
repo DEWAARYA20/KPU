@@ -395,7 +395,7 @@ export default function ProfilePage() {
                         signMethod === 'draw' ? 'bg-white shadow text-stone-900 font-semibold' : 'text-stone-500 hover:text-stone-900'
                       }`}
                     >
-                      Tulis Manual
+                      Tanda Tangan Manual
                     </button>
                     <button
                       type="button"
