@@ -349,7 +349,10 @@ export function SKPTemplate({
                 colSpan={5}
                 style={headerCell({ textAlign: 'center', fontSize: '11pt', padding: '8px' })}
               >
-                LAPORAN KINERJA {customPeriodText ? `(PERIODE: ${customPeriodText})` : `(BULAN: ${MONTH_NAMES[bulan - 1]} ${tahun})`}
+                {customPeriodText
+                  ? `LAPORAN KINERJA (PERIODE: ${customPeriodText})`
+                  : <span>LAPORAN KINERJA <span style={{ textTransform: 'none' }}>(BULAN: {MONTH_NAMES[bulan - 1]} {tahun})</span></span>
+                }
               </td>
             </tr>
             <tr>

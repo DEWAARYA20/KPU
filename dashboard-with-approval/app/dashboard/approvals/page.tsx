@@ -112,11 +112,41 @@ export default function ApprovalsPage() {
         setSignMethod('draw')
       }
 
-      // Load pending buku_kendali
+      // Load ALL profiles to properly determine subordinates
+      const { data: allProfilesData, error: allPError } = await supabase
+        .from('profiles')
+        .select('id, full_name, nip, pangkat, jabatan, unit_kerja, nama_atasan, nip_atasan, jabatan_atasan')
+
+      if (allPError || !allProfilesData) {
+        console.error('Error loading all profiles:', allPError)
+        return
+      }
+
+      // Determine subordinate IDs based on role
+      let subordinateIds: string[] = []
+      if (role === 'admin') {
+        // Admin sees all submissions
+        subordinateIds = allProfilesData.map(p => p.id)
+      } else {
+        // Head/Secretary: match by nip_atasan field in subordinate profiles
+        const byNipAtasan = allProfilesData
+          .filter(p => p.nip_atasan && p.nip_atasan.trim() === (profile.nip || '').trim())
+          .map(p => p.id)
+
+        if (byNipAtasan.length > 0) {
+          subordinateIds = byNipAtasan
+        } else {
+          // Fallback: if nip_atasan not set up, show all submitted so nothing is lost
+          subordinateIds = allProfilesData.map(p => p.id)
+        }
+      }
+
+      // Load pending buku_kendali for subordinates
       const { data: bukuData, error: bkError } = await supabase
         .from('buku_kendali')
         .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature, nilai`)
         .in('status', ['submitted', 'approved'])
+        .in('user_id', subordinateIds)
         .order('tahun', { ascending: false })
 
       if (bkError || !bukuData) {
@@ -124,34 +154,16 @@ export default function ApprovalsPage() {
         return
       }
 
-      // Load user profiles for these records
-      const userIds = Array.from(new Set(bukuData.map(b => b.user_id)))
-      if (userIds.length === 0) {
+      if (bukuData.length === 0) {
         setPendingApprovals([])
         setApprovedRecords([])
         setLoading(false)
         return
       }
 
-      const { data: profilesData, error: pError } = await supabase
-        .from('profiles')
-        .select('id, full_name, nip, pangkat, jabatan, unit_kerja, nama_atasan, nip_atasan, jabatan_atasan')
-        .in('id', userIds)
-
-      if (pError || !profilesData) {
-        console.error('Error loading profiles:', pError)
-        return
-      }
-
-      // Filter profiles to get subordinates
-      let subordinateIds: string[] = []
-      if (role === 'admin') {
-        subordinateIds = profilesData.map(p => p.id)
-      } else {
-        subordinateIds = profilesData
-          .filter(p => p.nip_atasan === profile.nip)
-          .map(p => p.id)
-      }
+      // Only use profiles that have submitted buku_kendali
+      const userIds = Array.from(new Set(bukuData.map(b => b.user_id)))
+      const profilesData = allProfilesData.filter(p => userIds.includes(p.id))
 
       // Filter bukuData to only subordinates
       const filteredBuku = bukuData.filter(b => subordinateIds.includes(b.user_id))

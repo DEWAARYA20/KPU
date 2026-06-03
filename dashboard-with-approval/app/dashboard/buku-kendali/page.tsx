@@ -744,12 +744,12 @@ export default function BukuKendaliPage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200 text-left">
-                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 w-8">No</th>
-                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 whitespace-nowrap">Tanggal</th>
-                          <th className="px-3 py-2 text-xs font-semibold text-gray-500">Uraian Kegiatan</th>
-                          <th className="px-3 py-2 text-xs font-semibold text-gray-500">Output / Hasil</th>
-                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 text-center">Status</th>
-                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 text-center">Aksi</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 w-8 align-middle">No</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 whitespace-nowrap align-middle">Tanggal</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 align-middle">Uraian Kegiatan</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 align-middle">Output / Hasil</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 text-center align-middle">Status</th>
+                          <th className="px-3 py-2 text-xs font-semibold text-gray-500 text-center align-middle">Aksi</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -760,8 +760,8 @@ export default function BukuKendaliPage() {
                               {record.hari},<br />
                               {new Date(record.tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                             </td>
-                            <td className="px-3 py-2.5 text-gray-700 text-xs max-w-[240px]">{record.uraian_kegiatan}</td>
-                            <td className="px-3 py-2.5 text-gray-700 text-xs max-w-[180px]">{record.output_hasil}</td>
+                            <td className="px-3 py-2.5 text-gray-700 text-xs max-w-[240px] break-words whitespace-normal">{record.uraian_kegiatan}</td>
+                            <td className="px-3 py-2.5 text-gray-700 text-xs max-w-[180px] break-words whitespace-normal">{record.output_hasil}</td>
                             <td className="px-3 py-2.5 text-center">
                               <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                                 record.status === 'approved' ? 'bg-green-100 text-green-700' :
