@@ -148,19 +148,42 @@ export default function ApprovalsPage() {
       }
 
       // Load pending buku_kendali for subordinates
-      const { data: bukuData, error: bkError } = await supabase
-        .from('buku_kendali')
-        .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature, nilai`)
-        .in('status', ['submitted', 'approved'])
-        .in('user_id', subordinateIds)
-        .order('tahun', { ascending: false })
+      // NOTE: 'nilai' column might not exist yet - handle gracefully
+      let bukuData: any[] | null = null
+      let bkError: any = null
 
-      if (bkError || !bukuData) {
-        console.error('Error loading buku_kendali:', bkError)
-        return
+      try {
+        const result = await supabase
+          .from('buku_kendali')
+          .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature, nilai`)
+          .in('status', ['submitted', 'approved'])
+          .in('user_id', subordinateIds)
+          .order('tahun', { ascending: false })
+        bukuData = result.data
+        bkError = result.error
+      } catch {
+        // If nilai column missing, retry without it
       }
 
-      if (bukuData.length === 0) {
+      // Fallback: fetch without nilai if first query failed
+      if (bkError || !bukuData) {
+        const result2 = await supabase
+          .from('buku_kendali')
+          .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature`)
+          .in('status', ['submitted', 'approved'])
+          .in('user_id', subordinateIds)
+          .order('tahun', { ascending: false })
+        bukuData = result2.data
+        bkError = result2.error
+      }
+
+      if (bkError) {
+        console.error('Error loading buku_kendali:', bkError)
+      }
+
+      const safeBukuData = bukuData ?? []
+
+      if (safeBukuData.length === 0) {
         setPendingApprovals([])
         setApprovedRecords([])
         setLoading(false)
@@ -168,11 +191,11 @@ export default function ApprovalsPage() {
       }
 
       // Only use profiles that have submitted buku_kendali
-      const userIds = Array.from(new Set(bukuData.map(b => b.user_id)))
+      const userIds = Array.from(new Set(safeBukuData.map((b: any) => b.user_id)))
       const profilesData = allProfilesData.filter(p => userIds.includes(p.id))
 
       // Filter bukuData to only subordinates
-      const filteredBuku = bukuData.filter(b => subordinateIds.includes(b.user_id))
+      const filteredBuku = safeBukuData.filter((b: any) => subordinateIds.includes(b.user_id))
       if (filteredBuku.length === 0) {
         setPendingApprovals([])
         setApprovedRecords([])
