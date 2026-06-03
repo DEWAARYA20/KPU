@@ -816,6 +816,7 @@ export default function BukuKendaliPage() {
                     secretary_signature: buku.secretary_signature,
                     signed_at: buku.signed_at,
                     user_signature: buku.user_signature,
+                    nilai: buku.nilai,
                   } : undefined}
                 />
               ) : (
@@ -835,6 +836,164 @@ export default function BukuKendaliPage() {
             </TabsContent>
           )
         })()}
+
+        {/* Admin overview tab contents */}
+        {profile.role === 'admin' && (
+          <TabsContent value="admin-rekap" className="space-y-4 mt-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm text-stone-700">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pilih Bulan</label>
+                  <Select
+                    value={`${adminMonth}`}
+                    onValueChange={v => setAdminMonth(parseInt(v))}
+                  >
+                    <SelectTrigger className="w-44 h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => (
+                        <SelectItem key={i} value={`${i}`}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="w-full md:w-64 space-y-1">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Cari Pegawai</label>
+                <input
+                  type="text"
+                  placeholder="Cari nama atau NIP..."
+                  value={adminSearch}
+                  onChange={e => setAdminSearch(e.target.value)}
+                  className="w-full h-9 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-red-800 text-stone-900"
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden text-stone-900">
+              <div className="px-4 py-3 border-b border-gray-100">
+                <h3 className="font-bold text-sm text-stone-800">
+                  Rekapitulasi Kinerja Pegawai — {MONTHS[adminMonth]} {selectedYear}
+                </h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left border-collapse">
+                  <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-xs font-semibold border-b border-stone-100">
+                    <tr>
+                      <th className="px-6 py-3">No</th>
+                      <th className="px-6 py-3">Nama & NIP</th>
+                      <th className="px-6 py-3">Jabatan & Golongan</th>
+                      <th className="px-6 py-3">Role</th>
+                      <th className="px-6 py-3 text-center">Status Laporan</th>
+                      <th className="px-6 py-3 text-center">Nilai Kinerja</th>
+                      <th className="px-6 py-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-100">
+                    {allProfiles
+                      .filter(p => {
+                        const searchLower = adminSearch.toLowerCase()
+                        return (
+                          (p.full_name || '').toLowerCase().includes(searchLower) ||
+                          (p.nip || '').includes(searchLower)
+                        )
+                      })
+                      .map((emp, idx) => {
+                        const empBuku = allBukuKendali.find(b => b.user_id === emp.id)
+                        const status = empBuku?.status || 'none'
+                        
+                        let statusBadge = (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-500">
+                            Belum Ada
+                          </span>
+                        )
+                        if (status === 'draft') {
+                          statusBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                              Draft
+                            </span>
+                          )
+                        } else if (status === 'submitted') {
+                          statusBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 animate-pulse">
+                              Diajukan
+                            </span>
+                          )
+                        } else if (status === 'approved') {
+                          statusBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Disetujui
+                            </span>
+                          )
+                        }
+
+                        let roleBadge = (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            Staf
+                          </span>
+                        )
+                        if (emp.role === 'admin') {
+                          roleBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Admin
+                            </span>
+                          )
+                        } else if (emp.role === 'secretary') {
+                          roleBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                              Sekretaris
+                            </span>
+                          )
+                        } else if (emp.role === 'head') {
+                          roleBadge = (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              Atasan
+                            </span>
+                          )
+                        }
+
+                        return (
+                          <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
+                            <td className="px-6 py-3.5 text-stone-400 text-xs font-medium">{idx + 1}</td>
+                            <td className="px-6 py-3.5">
+                              <div className="font-semibold text-stone-900">{emp.full_name || '—'}</div>
+                              <div className="text-xs text-stone-400">NIP. {emp.nip || '—'}</div>
+                            </td>
+                            <td className="px-6 py-3.5">
+                              <div className="text-stone-700 font-medium text-xs">{emp.jabatan || '—'}</div>
+                              <div className="text-xs text-stone-400">{emp.pangkat || '—'}</div>
+                            </td>
+                            <td className="px-6 py-3.5">{roleBadge}</td>
+                            <td className="px-6 py-3.5 text-center">{statusBadge}</td>
+                            <td className="px-6 py-3.5 text-center font-bold">
+                              {empBuku?.nilai !== undefined && empBuku?.nilai !== null ? (
+                                <span className="text-green-700">{empBuku.nilai}</span>
+                              ) : (
+                                <span className="text-stone-400 font-normal">—</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3.5 text-right">
+                              <Button
+                                onClick={() => handleViewUserRekap(emp)}
+                                size="sm"
+                                variant="outline"
+                                className="gap-1 hover:bg-stone-100"
+                                disabled={status === 'none'}
+                              >
+                                Lihat Rekap
+                              </Button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
       <Dialog open={isSignOpen} onOpenChange={setIsSignOpen}>
         <DialogContent className="max-w-md bg-white text-stone-900 border border-stone-200">
@@ -1085,163 +1244,7 @@ export default function BukuKendaliPage() {
         </DialogContent>
       </Dialog>
 
-        {/* Admin overview tab contents */}
-        {profile.role === 'admin' && (
-          <TabsContent value="admin-rekap" className="space-y-4 mt-4">
-            <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm text-stone-700">
-              <div className="flex flex-wrap items-center gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pilih Bulan</label>
-                  <Select
-                    value={`${adminMonth}`}
-                    onValueChange={v => setAdminMonth(parseInt(v))}
-                  >
-                    <SelectTrigger className="w-44 h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MONTHS.map((m, i) => (
-                        <SelectItem key={i} value={`${i}`}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
 
-              <div className="w-full md:w-64 space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Cari Pegawai</label>
-                <input
-                  type="text"
-                  placeholder="Cari nama atau NIP..."
-                  value={adminSearch}
-                  onChange={e => setAdminSearch(e.target.value)}
-                  className="w-full h-9 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-red-800 text-stone-900"
-                />
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden text-stone-900">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <h3 className="font-bold text-sm text-stone-800">
-                  Rekapitulasi Kinerja Pegawai — {MONTHS[adminMonth]} {selectedYear}
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left border-collapse">
-                  <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-xs font-semibold border-b border-stone-100">
-                    <tr>
-                      <th className="px-6 py-3">No</th>
-                      <th className="px-6 py-3">Nama & NIP</th>
-                      <th className="px-6 py-3">Jabatan & Golongan</th>
-                      <th className="px-6 py-3">Role</th>
-                      <th className="px-6 py-3 text-center">Status Laporan</th>
-                      <th className="px-6 py-3 text-center">Nilai Kinerja</th>
-                      <th className="px-6 py-3 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-stone-100">
-                    {allProfiles
-                      .filter(p => {
-                        const searchLower = adminSearch.toLowerCase()
-                        return (
-                          (p.full_name || '').toLowerCase().includes(searchLower) ||
-                          (p.nip || '').includes(searchLower)
-                        )
-                      })
-                      .map((emp, idx) => {
-                        const empBuku = allBukuKendali.find(b => b.user_id === emp.id)
-                        const status = empBuku?.status || 'none'
-                        
-                        let statusBadge = (
-                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-stone-100 text-stone-500">
-                            Belum Ada
-                          </span>
-                        )
-                        if (status === 'draft') {
-                          statusBadge = (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                              Draft
-                            </span>
-                          )
-                        } else if (status === 'submitted') {
-                          statusBadge = (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 animate-pulse">
-                              Diajukan
-                            </span>
-                          )
-                        } else if (status === 'approved') {
-                          statusBadge = (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              Disetujui
-                            </span>
-                          )
-                        }
-
-                        let roleBadge = (
-                          <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                            Staf
-                          </span>
-                        )
-                        if (emp.role === 'admin') {
-                          roleBadge = (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              Admin
-                            </span>
-                          )
-                        } else if (emp.role === 'secretary') {
-                          roleBadge = (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                              Sekretaris
-                            </span>
-                          )
-                        } else if (emp.role === 'head') {
-                          roleBadge = (
-                            <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              Atasan
-                            </span>
-                          )
-                        }
-
-                        return (
-                          <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
-                            <td className="px-6 py-3.5 text-stone-400 text-xs font-medium">{idx + 1}</td>
-                            <td className="px-6 py-3.5">
-                              <div className="font-semibold text-stone-900">{emp.full_name || '—'}</div>
-                              <div className="text-xs text-stone-400">NIP. {emp.nip || '—'}</div>
-                            </td>
-                            <td className="px-6 py-3.5">
-                              <div className="text-stone-700 font-medium text-xs">{emp.jabatan || '—'}</div>
-                              <div className="text-xs text-stone-400">{emp.pangkat || '—'}</div>
-                            </td>
-                            <td className="px-6 py-3.5">{roleBadge}</td>
-                            <td className="px-6 py-3.5 text-center">{statusBadge}</td>
-                            <td className="px-6 py-3.5 text-center font-bold">
-                              {empBuku?.nilai !== undefined && empBuku?.nilai !== null ? (
-                                <span className="text-green-700">{empBuku.nilai}</span>
-                              ) : (
-                                <span className="text-stone-400 font-normal">—</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-3.5 text-right">
-                              <Button
-                                onClick={() => handleViewUserRekap(emp)}
-                                size="sm"
-                                variant="outline"
-                                className="gap-1 hover:bg-stone-100"
-                                disabled={status === 'none'}
-                              >
-                                Lihat Rekap
-                              </Button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </TabsContent>
-        )}
 
         {/* Admin Detail View Dialog */}
         <Dialog open={isAdminDetailOpen} onOpenChange={setIsAdminDetailOpen}>
