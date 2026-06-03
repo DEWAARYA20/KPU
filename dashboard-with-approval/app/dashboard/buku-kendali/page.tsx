@@ -57,8 +57,8 @@ interface UserProfile {
 }
 
 const MONTHS = [
-  'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
-  'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER',
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ]
 
 const MONTHS_SHORT = [
@@ -75,8 +75,8 @@ const STATUS_INFO = {
 const formatIndonesianDateRange = (startStr: string, endStr: string) => {
   if (!startStr || !endStr) return ''
   const monthsIndo = [
-    'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
-    'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ]
   const startDate = new Date(startStr)
   const endDate = new Date(endStr)

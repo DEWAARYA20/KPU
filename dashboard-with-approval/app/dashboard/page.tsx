@@ -76,15 +76,19 @@ export default function DashboardPage() {
               .select('id, user_id', { count: 'exact', head: true })
               .eq('status', 'submitted')
 
-            if (role !== 'admin' && profile.nip) {
-              const { data: subProfiles } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('nip_atasan', profile.nip)
+            if (role !== 'admin') {
+              if (profile.nip) {
+                const { data: subProfiles } = await supabase
+                  .from('profiles')
+                  .select('id')
+                  .eq('nip_atasan', profile.nip)
 
-              if (subProfiles && subProfiles.length > 0) {
-                const subIds = subProfiles.map(s => s.id)
-                pendingQuery = pendingQuery.in('user_id', subIds)
+                if (subProfiles && subProfiles.length > 0) {
+                  const subIds = subProfiles.map(s => s.id)
+                  pendingQuery = pendingQuery.in('user_id', subIds)
+                } else {
+                  shouldExecute = false
+                }
               } else {
                 shouldExecute = false
               }

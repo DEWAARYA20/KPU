@@ -55,8 +55,8 @@ interface SKPTemplateProps {
 }
 
 const MONTH_NAMES = [
-  'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI',
-  'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER',
+  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ]
 
 const DEFAULT_SKP_ITEMS = [
@@ -81,6 +81,9 @@ const cell = (extra?: React.CSSProperties): React.CSSProperties => ({
   padding: '5px 7px',
   verticalAlign: 'top',
   fontSize: '10pt',
+  wordBreak: 'break-word',
+  overflowWrap: 'break-word',
+  whiteSpace: 'normal',
   ...extra,
 })
 
@@ -89,6 +92,7 @@ const headerCell = (extra?: React.CSSProperties): React.CSSProperties => ({
   backgroundColor: '#b8c4d8',
   fontWeight: 'bold',
   textAlign: 'center',
+  verticalAlign: 'middle',
 })
 
 export function SKPTemplate({
@@ -360,7 +364,7 @@ export function SKPTemplate({
             {/* Sub-header numbering row */}
             <tr>
               {['1', '2', '3', '4', '5'].map((n) => (
-                <td key={n} style={cell({ textAlign: 'center', fontStyle: 'italic', backgroundColor: '#f5f5f5' })}>
+                <td key={n} style={cell({ textAlign: 'center', fontStyle: 'italic', backgroundColor: '#f5f5f5', verticalAlign: 'middle' })}>
                   {n}
                 </td>
               ))}
