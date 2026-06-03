@@ -79,7 +79,10 @@ export default function ApprovalsPage() {
       if (!profile) return
 
       let role = profile.role || 'staff'
-      const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala') || profile.jabatan?.startsWith('Kepala')
+      // Case-insensitive check for supervisor by unit/jabatan
+      const jabatanLower = (profile.jabatan || '').toLowerCase()
+      const unitLower = (profile.unit_kerja || '').toLowerCase()
+      const isSupervisorUnit = unitLower.startsWith('kepala') || jabatanLower.startsWith('kepala')
       let isSupervisorNip = false
 
       if (profile.nip) {
@@ -93,11 +96,14 @@ export default function ApprovalsPage() {
         }
       }
 
-      if (role === 'staff' && (isSupervisorUnit || isSupervisorNip)) {
-        role = 'head'
+      if (isSupervisorUnit || isSupervisorNip) {
+        if (role === 'staff') role = 'head'
       }
 
-      if (!['secretary', 'head', 'admin'].includes(role)) return
+      if (!['secretary', 'head', 'admin'].includes(role)) {
+        setLoading(false)
+        return
+      }
 
       setUserRole(role)
       setSecretaryProfile({

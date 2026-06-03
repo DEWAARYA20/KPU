@@ -47,7 +47,10 @@ export default function DashboardPage() {
           setUserName(profile.full_name || 'User')
 
           let role = profile.role || 'staff'
-          const isSupervisorUnit = profile.unit_kerja?.startsWith('Kepala') || profile.jabatan?.startsWith('Kepala')
+          // Case-insensitive check for supervisor
+          const jabatanLower = (profile.jabatan || '').toLowerCase()
+          const unitLower = (profile.unit_kerja || '').toLowerCase()
+          const isSupervisorUnit = unitLower.startsWith('kepala') || jabatanLower.startsWith('kepala')
           let isSupervisorNip = false
 
           if (profile.nip) {
@@ -61,8 +64,8 @@ export default function DashboardPage() {
             }
           }
 
-          if (role === 'staff' && (isSupervisorUnit || isSupervisorNip)) {
-            role = 'head'
+          if (isSupervisorUnit || isSupervisorNip) {
+            if (role === 'staff') role = 'head'
           }
 
           const isSup = ['secretary', 'head', 'admin'].includes(role)
