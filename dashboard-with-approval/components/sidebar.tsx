@@ -14,6 +14,7 @@ import {
   BookOpen,
   UserCircle,
   Users,
+  Calendar,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -44,6 +45,11 @@ export function Sidebar({ userRole }: SidebarProps) {
       label: 'Persetujuan',
       href: '/dashboard/approvals',
       icon: CheckCircle,
+    })
+    menuItems.splice(5, 0, {
+      label: 'Jumlah Hari Kerja',
+      href: '/dashboard/hari-kerja',
+      icon: Calendar,
     })
   }
 

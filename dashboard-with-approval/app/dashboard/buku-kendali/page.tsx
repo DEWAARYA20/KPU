@@ -39,6 +39,7 @@ interface BukuKendali {
   signed_at?: string
   user_signature?: string
   nilai?: number
+  jumlah_hari_kerja?: number
 }
 
 interface UserProfile {
@@ -817,6 +818,7 @@ export default function BukuKendaliPage() {
                     signed_at: buku.signed_at,
                     user_signature: buku.user_signature,
                     nilai: buku.nilai,
+                    jumlah_hari_kerja: buku.jumlah_hari_kerja,
                   } : undefined}
                 />
               ) : (
@@ -1300,13 +1302,14 @@ export default function BukuKendaliPage() {
                          showPrint={true}
                          isAdminView={true}
                          signature={adminUserBuku ? {
-                           secretary_name: adminUserBuku.secretary_name,
-                           secretary_nip: adminUserBuku.secretary_nip,
-                           secretary_signature: adminUserBuku.secretary_signature,
-                           signed_at: adminUserBuku.signed_at,
-                           user_signature: adminUserBuku.user_signature,
-                           nilai: adminUserBuku.nilai,
-                         } : undefined}
+                            secretary_name: adminUserBuku.secretary_name,
+                            secretary_nip: adminUserBuku.secretary_nip,
+                            secretary_signature: adminUserBuku.secretary_signature,
+                            signed_at: adminUserBuku.signed_at,
+                            user_signature: adminUserBuku.user_signature,
+                            nilai: adminUserBuku.nilai,
+                            jumlah_hari_kerja: adminUserBuku.jumlah_hari_kerja,
+                          } : undefined}
                        />
                     )}
                   </TabsContent>

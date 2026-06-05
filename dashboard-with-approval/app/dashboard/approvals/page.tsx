@@ -29,6 +29,7 @@ interface BukuKendali {
   signed_at?: string
   user_signature?: string
   nilai?: number
+  jumlah_hari_kerja?: number
   userName?: string
   userNip?: string
   userPangkat?: string
@@ -54,7 +55,7 @@ export default function ApprovalsPage() {
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [signingId, setSigningId] = useState<string | null>(null)
   const [signMethod, setSignMethod] = useState<'profile' | 'draw'>('draw')
-  const [nilaiApproval, setNilaiApproval] = useState<Record<string, number | ''>>({})
+  const [jumlahHariKerjaInput, setJumlahHariKerjaInput] = useState<Record<string, number | ''>>({})
 
   // Signature canvas
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -148,33 +149,43 @@ export default function ApprovalsPage() {
       }
 
       // Load pending buku_kendali for subordinates
-      // NOTE: 'nilai' column might not exist yet - handle gracefully
+      // NOTE: 'nilai' and 'jumlah_hari_kerja' columns might not exist yet - handle gracefully
       let bukuData: any[] | null = null
       let bkError: any = null
 
       try {
         const result = await supabase
           .from('buku_kendali')
-          .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature, nilai`)
+          .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature, nilai, jumlah_hari_kerja`)
           .in('status', ['submitted', 'approved'])
           .in('user_id', subordinateIds)
           .order('tahun', { ascending: false })
         bukuData = result.data
         bkError = result.error
       } catch {
-        // If nilai column missing, retry without it
+        // If query failed (e.g. column missing), retry
       }
 
-      // Fallback: fetch without nilai if first query failed
       if (bkError || !bukuData) {
-        const result2 = await supabase
-          .from('buku_kendali')
-          .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature`)
-          .in('status', ['submitted', 'approved'])
-          .in('user_id', subordinateIds)
-          .order('tahun', { ascending: false })
-        bukuData = result2.data
-        bkError = result2.error
+        try {
+          const result2 = await supabase
+            .from('buku_kendali')
+            .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature, nilai`)
+            .in('status', ['submitted', 'approved'])
+            .in('user_id', subordinateIds)
+            .order('tahun', { ascending: false })
+          bukuData = result2.data
+          bkError = result2.error
+        } catch {
+          const result3 = await supabase
+            .from('buku_kendali')
+            .select(`id, user_id, bulan, tahun, status, approved_at, secretary_name, secretary_nip, secretary_signature, signed_at, user_signature`)
+            .in('status', ['submitted', 'approved'])
+            .in('user_id', subordinateIds)
+            .order('tahun', { ascending: false })
+          bukuData = result3.data
+          bkError = result3.error
+        }
       }
 
       if (bkError) {
@@ -234,6 +245,7 @@ export default function ApprovalsPage() {
           signed_at: buku.signed_at,
           user_signature: buku.user_signature,
           nilai: buku.nilai,
+          jumlah_hari_kerja: buku.jumlah_hari_kerja,
           userName: uProfile?.full_name || 'Pegawai',
           userNip: uProfile?.nip || '',
           userPangkat: uProfile?.pangkat || '',
@@ -306,7 +318,7 @@ export default function ApprovalsPage() {
     ctx?.clearRect(0, 0, canvas.width, canvas.height)
   }
 
-  const handleApprove = async (buku: BukuKendali, signatureImg: string, nilaiVal: number) => {
+  const handleApprove = async (buku: BukuKendali, signatureImg: string, nilaiVal: number, jumlahHariKerjaVal: number) => {
     setLoading(true)
     const now = new Date().toISOString()
     const { data: { user } } = await supabase.auth.getUser()
@@ -314,19 +326,37 @@ export default function ApprovalsPage() {
 
     try {
       // 1. Update buku_kendali table
-      await supabase
-        .from('buku_kendali')
-        .update({
-          status: 'approved',
-          approved_by: user.id,
-          approved_at: now,
-          secretary_signature: signatureImg,
-          secretary_name: secretaryProfile.name,
-          secretary_nip: secretaryProfile.nip,
-          signed_at: now,
-          nilai: nilaiVal,
-        })
-        .eq('id', buku.id)
+      try {
+        await supabase
+          .from('buku_kendali')
+          .update({
+            status: 'approved',
+            approved_by: user.id,
+            approved_at: now,
+            secretary_signature: signatureImg,
+            secretary_name: secretaryProfile.name,
+            secretary_nip: secretaryProfile.nip,
+            signed_at: now,
+            nilai: nilaiVal,
+            jumlah_hari_kerja: jumlahHariKerjaVal,
+          })
+          .eq('id', buku.id)
+      } catch (err) {
+        console.warn('Gagal menyimpan jumlah_hari_kerja, fallback update tanpa kolom tersebut:', err)
+        await supabase
+          .from('buku_kendali')
+          .update({
+            status: 'approved',
+            approved_by: user.id,
+            approved_at: now,
+            secretary_signature: signatureImg,
+            secretary_name: secretaryProfile.name,
+            secretary_nip: secretaryProfile.nip,
+            signed_at: now,
+            nilai: nilaiVal,
+          })
+          .eq('id', buku.id)
+      }
 
       // 2. Update activity records to approved
       await supabase
@@ -469,8 +499,15 @@ export default function ApprovalsPage() {
                     </Button>
                     <Button
                       onClick={() => {
-                        setSigningId(signingId === buku.id ? null : buku.id)
+                        const nextId = signingId === buku.id ? null : buku.id
+                        setSigningId(nextId)
                         clearSignature()
+                        if (nextId) {
+                          setJumlahHariKerjaInput(prev => ({
+                            ...prev,
+                            [buku.id]: buku.jumlah_hari_kerja || ''
+                          }))
+                        }
                       }}
                       className="gap-1 bg-blue-600 hover:bg-blue-700 text-white"
                       size="sm"
@@ -502,6 +539,7 @@ export default function ApprovalsPage() {
                       signature={{
                         user_signature: buku.user_signature,
                         nilai: buku.nilai,
+                        jumlah_hari_kerja: buku.jumlah_hari_kerja,
                       }}
                     />
                   </div>
@@ -531,28 +569,51 @@ export default function ApprovalsPage() {
                       <a href="/dashboard/profile" className="text-blue-600 underline">profil Anda</a>.
                     </p>
 
-                    {/* Nilai Kinerja (skala 1-100) */}
-                    <div className="space-y-1.5 max-w-xs mt-3 mb-2">
-                      <label className="text-xs font-semibold text-stone-700 block">
-                        NILAI KINERJA (SKALA 1-100) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="100"
-                        value={nilaiApproval[buku.id] ?? ''}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value)
-                          setNilaiApproval(prev => ({
-                            ...prev,
-                            [buku.id]: isNaN(val) ? '' : Math.min(100, Math.max(1, val))
-                          }))
-                        }}
-                        placeholder="Contoh: 85"
-                        className="w-full h-9 px-3 py-1 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-stone-900"
-                        required
-                      />
-                    </div>
+                    {/* Unique Approved Days Info */}
+                    {(() => {
+                      const uniqueAccDates = new Set(buku.records.filter(r => r.status === 'submitted' || r.status === 'approved').map(r => r.tanggal))
+                      const jumlahHariKerjaAcc = uniqueAccDates.size
+                      const inputHariKerja = jumlahHariKerjaInput[buku.id] ?? ''
+                      const calculatedNilai = (typeof inputHariKerja === 'number' && inputHariKerja > 0)
+                        ? Math.round((jumlahHariKerjaAcc / inputHariKerja) * 100)
+                        : 0
+
+                      return (
+                        <div className="space-y-3 bg-white p-3 rounded-md border border-stone-200 shadow-sm max-w-xs mt-3 mb-2">
+                          <div>
+                            <span className="text-xs font-semibold text-stone-500 uppercase block">Hari Kerja di ACC</span>
+                            <span className="text-sm font-bold text-stone-800">{jumlahHariKerjaAcc} Hari</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-xs font-semibold text-stone-700 block uppercase">
+                              Jumlah Hari Kerja <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="31"
+                              value={jumlahHariKerjaInput[buku.id] ?? ''}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value)
+                                setJumlahHariKerjaInput(prev => ({
+                                  ...prev,
+                                  [buku.id]: isNaN(val) ? '' : Math.min(31, Math.max(1, val))
+                                }))
+                              }}
+                              placeholder="Input Jumlah Hari..."
+                              className="w-full h-9 px-3 py-1 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 text-stone-900"
+                              required
+                            />
+                          </div>
+
+                          <div className="pt-2 border-t border-stone-100 flex justify-between items-center">
+                            <span className="text-xs font-bold text-stone-600 uppercase">Nilai Kinerja:</span>
+                            <span className="text-sm font-extrabold text-blue-700">{calculatedNilai}%</span>
+                          </div>
+                        </div>
+                      )
+                    })()}
 
                     <div className="flex bg-stone-200 p-0.5 rounded-md text-xs font-medium max-w-xs mb-1">
                       {secretaryProfile.signature && (
@@ -624,11 +685,14 @@ export default function ApprovalsPage() {
                     <div className="flex gap-3 pt-2">
                       <Button
                         onClick={async () => {
-                          const score = nilaiApproval[buku.id]
-                          if (score === undefined || score === '' || score < 1 || score > 100) {
-                            alert('Silakan masukkan nilai kinerja staff (skala 1-100) terlebih dahulu')
+                          const uniqueAccDates = new Set(buku.records.filter(r => r.status === 'submitted' || r.status === 'approved').map(r => r.tanggal))
+                          const jumlahHariKerjaAcc = uniqueAccDates.size
+                          const inputHariKerja = jumlahHariKerjaInput[buku.id]
+                          if (inputHariKerja === undefined || inputHariKerja === '' || inputHariKerja < 1) {
+                            alert('Silakan masukkan jumlah hari kerja terlebih dahulu')
                             return
                           }
+                          const score = Math.round((jumlahHariKerjaAcc / Number(inputHariKerja)) * 100)
                           let finalSign = ''
                           if (signMethod === 'profile') {
                             finalSign = secretaryProfile.signature || ''
@@ -637,7 +701,7 @@ export default function ApprovalsPage() {
                               finalSign = canvasRef.current.toDataURL('image/png')
                             }
                           }
-                          await handleApprove(buku, finalSign, score)
+                          await handleApprove(buku, finalSign, score, Number(inputHariKerja))
                         }}
                         className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
                       >
@@ -759,6 +823,7 @@ export default function ApprovalsPage() {
                           signed_at: buku.signed_at,
                           user_signature: buku.user_signature,
                           nilai: buku.nilai,
+                          jumlah_hari_kerja: buku.jumlah_hari_kerja,
                         }}
                       />
                     </div>

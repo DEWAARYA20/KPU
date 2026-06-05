@@ -40,6 +40,7 @@ interface SignatureData {
   signed_at?: string
   user_signature?: string
   nilai?: number
+  jumlah_hari_kerja?: number
 }
 
 interface SKPTemplateProps {
@@ -194,7 +195,15 @@ export function SKPTemplate({
     : null
 
   const totalRecords = sortedRecords.length
-  const nilaiPersen = (signature && typeof signature.nilai === 'number') ? signature.nilai : (totalRecords > 0 ? 100 : 0)
+  // Get unique dates of approved or submitted records (status is 'approved' or 'submitted')
+  const approvedRecords = sortedRecords.filter(r => r.status === 'approved' || r.status === 'submitted')
+  const uniqueApprovedDates = new Set(approvedRecords.map(r => r.tanggal.split('T')[0]))
+  const jumlahHariKerjaAcc = uniqueApprovedDates.size
+
+  const jumlahHariKerja = signature?.jumlah_hari_kerja ?? 0
+  const nilaiPersen = (signature && typeof signature.nilai === 'number') 
+    ? signature.nilai 
+    : (jumlahHariKerja > 0 ? Math.round((jumlahHariKerjaAcc / jumlahHariKerja) * 100) : 0)
 
   return (
     <div className="space-y-3">
@@ -406,6 +415,30 @@ export function SKPTemplate({
               ))
             }
 
+            {/* Jumlah Hari Kerja Yang Di ACC row */}
+            <tr>
+              <td
+                colSpan={4}
+                style={cell({ textAlign: 'left', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}
+              >
+                Jumlah Hari Kerja Yang Di ACC (Tanggal Unik)
+              </td>
+              <td style={cell({ textAlign: 'center', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}>
+                {jumlahHariKerjaAcc}
+              </td>
+            </tr>
+            {/* Jumlah Hari Kerja row */}
+            <tr>
+              <td
+                colSpan={4}
+                style={cell({ textAlign: 'left', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}
+              >
+                Jumlah Hari Kerja (Isi Manual)
+              </td>
+              <td style={cell({ textAlign: 'center', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}>
+                {jumlahHariKerja}
+              </td>
+            </tr>
             {/* NILAI (%) row */}
             <tr>
               <td
