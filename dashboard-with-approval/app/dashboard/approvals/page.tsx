@@ -22,6 +22,7 @@ interface BukuKendali {
   bulan: number
   tahun: number
   status: 'submitted' | 'approved'
+  approved_by?: string
   approved_at?: string
   secretary_name?: string
   secretary_nip?: string
@@ -40,6 +41,7 @@ interface BukuKendali {
   userJabatanAtasan?: string
   records: ActivityRecord[]
 }
+
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -378,9 +380,22 @@ export default function ApprovalsPage() {
   }
 
   const handleReject = async (bukuId: string) => {
-    if (!confirm('Kembalikan dokumen ini ke draft?')) return
+    if (!confirm('Kembalikan dokumen ini ke draft? Tanda tangan dan data persetujuan akan dihapus.')) return
     try {
-      await supabase.from('buku_kendali').update({ status: 'draft' }).eq('id', bukuId)
+      // Hapus semua data persetujuan & tanda tangan sekaligus
+      await supabase.from('buku_kendali').update({
+        status: 'draft',
+        approved_by: null,
+        approved_at: null,
+        secretary_signature: null,
+        secretary_name: null,
+        secretary_nip: null,
+        signed_at: null,
+        nilai: null,
+        jumlah_hari_kerja: null,
+        user_signature: null,
+      }).eq('id', bukuId)
+
       const buku = pendingApprovals.find(b => b.id === bukuId) || approvedRecords.find(b => b.id === bukuId)
       if (buku) {
         await supabase.from('activity_records')
