@@ -415,30 +415,6 @@ export function SKPTemplate({
               ))
             }
 
-            {/* Jumlah Hari Kerja Yang Di ACC row */}
-            <tr>
-              <td
-                colSpan={4}
-                style={cell({ textAlign: 'left', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}
-              >
-                Jumlah Hari Kerja Yang Di ACC (Tanggal Unik)
-              </td>
-              <td style={cell({ textAlign: 'center', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}>
-                {jumlahHariKerjaAcc}
-              </td>
-            </tr>
-            {/* Jumlah Hari Kerja row */}
-            <tr>
-              <td
-                colSpan={4}
-                style={cell({ textAlign: 'left', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}
-              >
-                Jumlah Hari Kerja (Isi Manual)
-              </td>
-              <td style={cell({ textAlign: 'center', fontWeight: 'bold', backgroundColor: '#f9f9f9' })}>
-                {jumlahHariKerja}
-              </td>
-            </tr>
             {/* NILAI (%) row */}
             <tr>
               <td

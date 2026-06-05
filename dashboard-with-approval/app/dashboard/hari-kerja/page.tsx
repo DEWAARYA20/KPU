@@ -5,7 +5,14 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Calendar, Save, Search, CheckCircle2, AlertCircle } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Calendar, Save, Search, CheckCircle2, ClipboardList, CheckSquare, Square, Clock } from 'lucide-react'
 
 interface UserProfile {
   id: string
@@ -21,7 +28,12 @@ interface ActivityRecord {
   id: string
   user_id: string
   tanggal: string
+  hari: string
+  uraian_kegiatan: string
+  output_hasil: string
   status: string
+  bulan: number
+  tahun: number
 }
 
 interface BukuKendali {
@@ -38,6 +50,13 @@ const MONTHS = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ]
 
+interface CalendarDay {
+  dateString: string
+  dayNum: number
+  dayName: string
+  isWeekend: boolean
+}
+
 export default function HariKerjaPage() {
   const [subordinates, setSubordinates] = useState<UserProfile[]>([])
   const [bukuMap, setBukuMap] = useState<Record<string, BukuKendali>>({})
@@ -53,11 +72,37 @@ export default function HariKerjaPage() {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(null)
 
+  // Presence Modal States
+  const [isPresenceOpen, setIsPresenceOpen] = useState(false)
+  const [selectedSub, setSelectedSub] = useState<UserProfile | null>(null)
+  const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([])
+  const [subRecords, setSubRecords] = useState<Record<string, ActivityRecord>>({})
+  const [selectedDays, setSelectedDays] = useState<Record<string, boolean>>({})
+  const [savingPresence, setSavingPresence] = useState(false)
+
   const supabase = createClient()
 
   useEffect(() => {
     loadSubordinatesData()
   }, [selectedMonth, selectedYear])
+
+  const getDaysInMonth = (monthIndex: number, year: number): CalendarDay[] => {
+    const date = new Date(year, monthIndex, 1)
+    const days: CalendarDay[] = []
+    const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
+    while (date.getMonth() === monthIndex) {
+      const dayNum = date.getDate()
+      const dateString = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`
+      days.push({
+        dateString,
+        dayNum,
+        dayName: dayNames[date.getDay()],
+        isWeekend: date.getDay() === 0 || date.getDay() === 6
+      })
+      date.setDate(date.getDate() + 1)
+    }
+    return days
+  }
 
   const loadSubordinatesData = async () => {
     setLoading(true)
@@ -115,7 +160,6 @@ export default function HariKerjaPage() {
         if (byNip.length > 0) {
           list = byNip
         } else {
-          // Fallback if nip_atasan not set up properly
           list = allProfiles.filter(p => p.id !== user.id)
         }
       }
@@ -138,7 +182,7 @@ export default function HariKerjaPage() {
           .eq('tahun', selectedYear)
         bkData = data || []
       } catch (err) {
-        console.warn('Gagal memuat buku_kendali dengan jumlah_hari_kerja. Melakukan query fallback...', err)
+        console.warn('Fallback query buku_kendali...', err)
         const { data } = await supabase
           .from('buku_kendali')
           .select('id, user_id, bulan, tahun, nilai')
@@ -157,14 +201,14 @@ export default function HariKerjaPage() {
       setBukuMap(newBukuMap)
       setInputs(newInputMap)
 
-      // Fetch activity_records to count approved/submitted unique dates
+      // Fetch activity_records to count approved unique dates
       const { data: recordsData } = await supabase
         .from('activity_records')
         .select('user_id, tanggal, status')
         .in('user_id', subIds)
         .eq('bulan', selectedMonth + 1)
         .eq('tahun', selectedYear)
-        .in('status', ['submitted', 'approved'])
+        .eq('status', 'approved')
 
       const newAccDaysMap: Record<string, number> = {}
       subIds.forEach(id => {
@@ -176,8 +220,136 @@ export default function HariKerjaPage() {
 
     } catch (err) {
       console.error(err)
-    } finally {
+    } final: {
       setLoading(false)
+    }
+  }
+
+  const handleOpenPresence = async (sub: UserProfile) => {
+    setSelectedSub(sub)
+    const days = getDaysInMonth(selectedMonth, selectedYear)
+    setCalendarDays(days)
+    
+    // Fetch all activity records for this subordinate, month, year
+    try {
+      const { data: recs, error } = await supabase
+        .from('activity_records')
+        .select('*')
+        .eq('user_id', sub.id)
+        .eq('bulan', selectedMonth + 1)
+        .eq('tahun', selectedYear)
+
+      if (error) throw error
+
+      const mappedRecs: Record<string, ActivityRecord> = {}
+      const checkedDays: Record<string, boolean> = {}
+
+      // Default checkbox: true if status is 'approved'
+      days.forEach(day => {
+        const matchingRec = (recs || []).find(r => r.tanggal.split('T')[0] === day.dateString)
+        if (matchingRec) {
+          mappedRecs[day.dateString] = matchingRec
+          checkedDays[day.dateString] = matchingRec.status === 'approved'
+        } else {
+          checkedDays[day.dateString] = false
+        }
+      })
+
+      setSubRecords(mappedRecs)
+      setSelectedDays(checkedDays)
+      setIsPresenceOpen(true)
+    } catch (err) {
+      console.error(err)
+      alert('Gagal mengambil data kehadiran pegawai')
+    }
+  }
+
+  const handleSavePresence = async () => {
+    if (!selectedSub) return
+    setSavingPresence(true)
+    try {
+      const inserts = []
+      const updates = []
+      const deletes = []
+
+      for (const day of calendarDays) {
+        const isChecked = selectedDays[day.dateString]
+        const existing = subRecords[day.dateString]
+
+        if (isChecked) {
+          if (!existing) {
+            // Insert
+            inserts.push({
+              user_id: selectedSub.id,
+              tanggal: day.dateString,
+              hari: day.dayName,
+              uraian_kegiatan: 'Kehadiran (Dikonfirmasi Atasan)',
+              output_hasil: 'Hadir',
+              status: 'approved',
+              bulan: selectedMonth + 1,
+              tahun: selectedYear
+            })
+          } else if (existing.status !== 'approved') {
+            // Update to approved
+            updates.push({ id: existing.id, status: 'approved' })
+          }
+        } else {
+          // Unchecked
+          if (existing) {
+            if (existing.uraian_kegiatan === 'Kehadiran (Dikonfirmasi Atasan)') {
+              // Delete supervisor created
+              deletes.push(existing.id)
+            } else if (existing.status === 'approved') {
+              // Update staff created back to submitted or draft so it is not ACC
+              updates.push({ id: existing.id, status: 'submitted' })
+            }
+          }
+        }
+      }
+
+      // Supabase batch execution
+      if (inserts.length > 0) {
+        const { error } = await supabase.from('activity_records').insert(inserts)
+        if (error) throw error
+      }
+
+      for (const item of updates) {
+        const { error } = await supabase
+          .from('activity_records')
+          .update({ status: item.status })
+          .eq('id', item.id)
+        if (error) throw error
+      }
+
+      if (deletes.length > 0) {
+        const { error } = await supabase
+          .from('activity_records')
+          .delete()
+          .in('id', deletes)
+        if (error) throw error
+      }
+
+      // Recalculate and update the buku_kendali record as well
+      const updatedAccCount = calendarDays.filter(d => selectedDays[d.dateString]).length
+      const existingBuku = bukuMap[selectedSub.id]
+      const inputVal = inputs[selectedSub.id]
+
+      if (existingBuku && existingBuku.id && typeof inputVal === 'number' && inputVal > 0) {
+        const calculatedNilai = Math.round((updatedAccCount / inputVal) * 100)
+        await supabase
+          .from('buku_kendali')
+          .update({ nilai: calculatedNilai })
+          .eq('id', existingBuku.id)
+      }
+
+      alert('Berhasil menyimpan daftar tanggal kehadiran pegawai!')
+      setIsPresenceOpen(false)
+      await loadSubordinatesData()
+    } catch (err) {
+      console.error(err)
+      alert('Gagal menyimpan tanggal kehadiran')
+    } finally {
+      setSavingPresence(false)
     }
   }
 
@@ -209,7 +381,6 @@ export default function HariKerjaPage() {
         error = result.error
       } else {
         // Insert
-        const { data: { user } } = await supabase.auth.getUser()
         const result = await supabase
           .from('buku_kendali')
           .insert([{
@@ -266,7 +437,7 @@ export default function HariKerjaPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Input Hari Kerja</h1>
-        <p className="text-gray-600 mt-1">Isi manual jumlah hari kerja sebulan penuh untuk bawahan Anda</p>
+        <p className="text-gray-600 mt-1">Isi manual jumlah hari kerja sebulan penuh dan kelola tanggal kehadiran bawahan Anda</p>
       </div>
 
       {/* Filter & Search Bar */}
@@ -332,7 +503,7 @@ export default function HariKerjaPage() {
                   <th className="px-6 py-3.5 text-center">Hari Kerja di ACC (Tanggal Unik)</th>
                   <th className="px-6 py-3.5 text-center w-48">Jumlah Hari Kerja (Manual)</th>
                   <th className="px-6 py-3.5 text-center">Nilai Kinerja (%)</th>
-                  <th className="px-6 py-3.5 text-center w-36">Aksi</th>
+                  <th className="px-6 py-3.5 text-center w-64">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,7 +512,6 @@ export default function HariKerjaPage() {
                     const accDays = accDaysMap[sub.id] || 0
                     const inputVal = inputs[sub.id]
                     
-                    // Live preview of Nilai
                     const nilaiPreview = (typeof inputVal === 'number' && inputVal > 0)
                       ? Math.round((accDays / inputVal) * 100)
                       : 0
@@ -353,9 +523,14 @@ export default function HariKerjaPage() {
                           <div className="text-stone-500 text-xs mt-0.5">NIP. {sub.nip || '—'} | {sub.jabatan || '—'}</div>
                         </td>
                         <td className="px-6 py-4.5 text-center">
-                          <span className="inline-flex items-center justify-center bg-green-50 text-green-700 font-bold px-3 py-1 rounded-full border border-green-200">
-                            {accDays} Hari
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenPresence(sub)}
+                            className="inline-flex items-center justify-center bg-green-50 text-green-700 font-bold px-3 py-1 rounded-full border border-green-200 hover:bg-green-100 transition-colors cursor-pointer"
+                            title="Klik untuk mengelola tanggal kehadiran bawahan"
+                          >
+                            {accDays} Hari (Kelola)
+                          </button>
                         </td>
                         <td className="px-6 py-4.5 text-center">
                           <div className="flex items-center justify-center">
@@ -382,14 +557,24 @@ export default function HariKerjaPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4.5 text-center">
-                          <Button
-                            onClick={() => handleSave(sub)}
-                            disabled={savingId === sub.id}
-                            className="bg-red-800 hover:bg-red-950 text-white font-medium flex items-center justify-center gap-1.5 w-full py-1.5"
-                          >
-                            <Save className="w-4 h-4" />
-                            {savingId === sub.id ? 'Menyimpan...' : 'Simpan'}
-                          </Button>
+                          <div className="flex gap-2 justify-center">
+                            <Button
+                              onClick={() => handleOpenPresence(sub)}
+                              variant="outline"
+                              size="sm"
+                              className="border-stone-300 text-stone-700 hover:bg-stone-100 text-xs font-semibold"
+                            >
+                              Edit Tanggal
+                            </Button>
+                            <Button
+                              onClick={() => handleSave(sub)}
+                              disabled={savingId === sub.id}
+                              className="bg-red-800 hover:bg-red-950 text-white font-medium flex items-center justify-center gap-1.5 px-3 py-1 text-xs"
+                            >
+                              <Save className="w-3.5 h-3.5" />
+                              {savingId === sub.id ? '...' : 'Simpan'}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -406,6 +591,106 @@ export default function HariKerjaPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Kelola Kehadiran Modal */}
+      <Dialog open={isPresenceOpen} onOpenChange={setIsPresenceOpen}>
+        <DialogContent className="max-w-xl bg-white text-stone-900 border border-stone-200">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-stone-800 flex items-center gap-2">
+              <ClipboardList className="w-5 h-5 text-red-800" />
+              Kelola Tanggal Hadir: {selectedSub?.full_name}
+            </DialogTitle>
+            <p className="text-xs text-stone-500">
+              Pilih tanggal-tanggal di bawah ini saat pegawai hadir. Hari Sabtu & Minggu diberi tanda khusus.
+            </p>
+          </DialogHeader>
+
+          <div className="my-2 border border-stone-200 rounded-md max-h-[50vh] overflow-y-auto bg-stone-50">
+            <div className="grid grid-cols-1 divide-y divide-stone-200">
+              {calendarDays.map(day => {
+                const isChecked = selectedDays[day.dateString] || false
+                const matchedRec = subRecords[day.dateString]
+                
+                return (
+                  <div
+                    key={day.dateString}
+                    onClick={() => {
+                      setSelectedDays(prev => ({ ...prev, [day.dateString]: !isChecked }))
+                    }}
+                    className={`flex items-center justify-between px-4 py-2.5 cursor-pointer transition-colors ${
+                      day.isWeekend ? 'bg-red-50/40 hover:bg-red-50/70' : 'hover:bg-stone-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="text-stone-600">
+                        {isChecked ? (
+                          <CheckSquare className="w-5 h-5 text-green-700" />
+                        ) : (
+                          <Square className="w-5 h-5 text-stone-400" />
+                        )}
+                      </div>
+                      <div>
+                        <span className={`font-semibold ${day.isWeekend ? 'text-red-700' : 'text-stone-800'}`}>
+                          {day.dayName}, {day.dayNum} {MONTHS[selectedMonth]} {selectedYear}
+                        </span>
+                        {day.isWeekend && (
+                          <span className="text-[10px] bg-red-100 text-red-800 font-bold px-1.5 py-0.5 rounded ml-2">
+                            Weekend
+                          </span>
+                        )}
+                        
+                        {matchedRec && matchedRec.uraian_kegiatan !== 'Kehadiran (Dikonfirmasi Atasan)' && (
+                          <div className="text-[11px] text-blue-700 mt-0.5 font-medium italic">
+                            Laporan Staff: "{matchedRec.uraian_kegiatan}" ({matchedRec.status === 'approved' ? 'Disetujui' : 'Diajukan'})
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      {isChecked ? (
+                        <span className="text-[11px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200">
+                          ACC
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-medium text-stone-400">
+                          —
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center text-xs font-semibold text-stone-600 bg-stone-100 p-2 rounded-md">
+            <span>Total Tanggal di ACC:</span>
+            <span className="text-sm font-extrabold text-green-700">
+              {calendarDays.filter(d => selectedDays[d.dateString]).length} Hari
+            </span>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsPresenceOpen(false)}
+              className="border-stone-300 text-stone-700"
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSavePresence}
+              disabled={savingPresence}
+              className="bg-red-800 hover:bg-red-950 text-white font-bold"
+            >
+              {savingPresence ? 'Menyimpan...' : 'Simpan Kehadiran'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
