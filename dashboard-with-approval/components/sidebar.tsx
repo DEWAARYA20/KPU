@@ -14,7 +14,6 @@ import {
   BookOpen,
   UserCircle,
   Users,
-  Calendar,
 } from 'lucide-react'
 
 interface SidebarProps {
