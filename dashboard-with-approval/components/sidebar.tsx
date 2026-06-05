@@ -46,11 +46,7 @@ export function Sidebar({ userRole }: SidebarProps) {
       href: '/dashboard/approvals',
       icon: CheckCircle,
     })
-    menuItems.splice(5, 0, {
-      label: 'Jumlah Hari Kerja',
-      href: '/dashboard/hari-kerja',
-      icon: Calendar,
-    })
+
   }
 
   if (userRole === 'admin') {
