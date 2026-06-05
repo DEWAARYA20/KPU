@@ -123,6 +123,16 @@ export default function BukuKendaliPage() {
   const [allBukuKendali, setAllBukuKendali] = useState<any[]>([])
   const [adminMonth, setAdminMonth] = useState(new Date().getMonth())
   const [adminSearch, setAdminSearch] = useState('')
+  const [adminPeriodType, setAdminPeriodType] = useState<'monthly' | 'custom'>('monthly')
+  const [adminStartDate, setAdminStartDate] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  })
+  const [adminEndDate, setAdminEndDate] = useState(() => {
+    const now = new Date()
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  })
   const [selectedAdminUser, setSelectedAdminUser] = useState<UserProfile | null>(null)
   const [adminUserRecords, setAdminUserRecords] = useState<ActivityRecord[]>([])
   const [adminUserBuku, setAdminUserBuku] = useState<BukuKendali | null>(null)
@@ -844,22 +854,71 @@ export default function BukuKendaliPage() {
           <TabsContent value="admin-rekap" className="space-y-4 mt-4">
             <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-lg border border-gray-200 shadow-sm text-stone-700">
               <div className="flex flex-wrap items-center gap-4">
+                {/* Tipe Periode */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pilih Bulan</label>
-                  <Select
-                    value={`${adminMonth}`}
-                    onValueChange={v => setAdminMonth(parseInt(v))}
-                  >
-                    <SelectTrigger className="w-44 h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MONTHS.map((m, i) => (
-                        <SelectItem key={i} value={`${i}`}>{m}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Periode Laporan</label>
+                  <div className="flex bg-gray-100 p-0.5 rounded-md">
+                    <button
+                      type="button"
+                      onClick={() => setAdminPeriodType('monthly')}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        adminPeriodType === 'monthly' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'
+                      }`}
+                    >
+                      Seluruh Bulan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAdminPeriodType('custom')}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                        adminPeriodType === 'custom' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'
+                      }`}
+                    >
+                      Rentang Tanggal
+                    </button>
+                  </div>
                 </div>
+
+                {/* Pilih Bulan atau Rentang Tanggal */}
+                {adminPeriodType === 'monthly' ? (
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Pilih Bulan</label>
+                    <Select
+                      value={`${adminMonth}`}
+                      onValueChange={v => setAdminMonth(parseInt(v))}
+                    >
+                      <SelectTrigger className="w-44 h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MONTHS.map((m, i) => (
+                          <SelectItem key={i} value={`${i}`}>{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Tanggal Mulai</label>
+                      <input
+                        type="date"
+                        value={adminStartDate}
+                        onChange={e => setAdminStartDate(e.target.value)}
+                        className="h-9 w-40 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-red-800"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block">Tanggal Selesai</label>
+                      <input
+                        type="date"
+                        value={adminEndDate}
+                        onChange={e => setAdminEndDate(e.target.value)}
+                        className="h-9 w-40 px-3 py-1 rounded-md border border-gray-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-red-800"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="w-full md:w-64 space-y-1">
@@ -877,7 +936,10 @@ export default function BukuKendaliPage() {
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden text-stone-900">
               <div className="px-4 py-3 border-b border-gray-100">
                 <h3 className="font-bold text-sm text-stone-800">
-                  Rekapitulasi Kinerja Pegawai — {MONTHS[adminMonth]} {selectedYear}
+                  Rekapitulasi Kinerja Pegawai —{' '}
+                  {adminPeriodType === 'custom'
+                    ? `${adminStartDate} s/d ${adminEndDate}`
+                    : `${MONTHS[adminMonth]} ${selectedYear}`}
                 </h3>
               </div>
               <div className="overflow-x-auto">
