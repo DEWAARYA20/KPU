@@ -94,6 +94,7 @@ const headerCell = (extra?: React.CSSProperties): React.CSSProperties => ({
   fontWeight: 'bold',
   textAlign: 'center',
   verticalAlign: 'middle',
+  whiteSpace: 'nowrap',
 })
 
 export function SKPTemplate({
@@ -336,7 +337,7 @@ export function SKPTemplate({
               </td>
             </tr>
             <tr>
-              <th style={headerCell({ width: '6%' })}>NO</th>
+              <th style={headerCell({ width: '8%' })}>NO</th>
               <th style={headerCell()}>URAIAN TUGAS SKP</th>
             </tr>
           </thead>
@@ -365,7 +366,7 @@ export function SKPTemplate({
               </td>
             </tr>
             <tr>
-              <th style={headerCell({ width: '5%' })}>NO</th>
+              <th style={headerCell({ width: '8%' })}>NO</th>
               <th style={headerCell({ width: '18%' })}>HARI/TANGGAL</th>
               <th style={headerCell({ width: '42%' })}>URAIAN KEGIATAN</th>
               <th style={headerCell({ width: '20%' })}>OUTPUT/HASIL</th>
